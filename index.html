@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GCC Value MVP Framework - Industry Agnostic</title>
+<link rel="stylesheet" href="style.css?v=1" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">MVP</span>
+    <div>
+      <h1>GCC Value MVP Framework - Industry Agnostic</h1>
+      <p id="orgSubtitle">Voice of Business &rarr; Strategic Goals &rarr; Organization &rarr; Value MVP</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button id="btnExportJSON" class="btn ghost">Export JSON</button>
+    <label class="btn ghost file-btn">Import JSON
+      <input type="file" id="importJSONInput" accept="application/json" hidden />
+    </label>
+    <button id="btnLoadSample" class="btn ghost">Load Sample Data</button>
+    <button id="btnResetAll" class="btn danger">Reset All</button>
+  </div>
+</header>
+
+<div class="app-shell">
+  <nav class="sidenav" id="sideNav">
+    <button class="nav-item active" data-tab="vob">1. Voice of Business</button>
+    <button class="nav-item" data-tab="goals">2. Strategic Goals</button>
+    <button class="nav-item" data-tab="orgstructure">3. Organisation Structure</button>
+    <button class="nav-item" data-tab="northstar">4. North Star &amp; Mandate</button>
+    <button class="nav-item" data-tab="workshop">5. Workshop Capture — Capability Candidates</button>
+    <button class="nav-item" data-tab="placement">6. GCC vs Power House</button>
+    <button class="nav-item" data-tab="landscape">7. Capability Landscape</button>
+    <button class="nav-item" data-tab="architecture">8. Application &amp; Information Architecture</button>
+    <button class="nav-item" data-tab="assumptions">9. Value Assumptions</button>
+    <button class="nav-item" data-tab="valuemodel">10. MVP Value Model</button>
+    <button class="nav-item" data-tab="storyline">11. Executive Storyline</button>
+  </nav>
+
+  <main class="content">
+    <section id="tab-vob" class="tab-panel active"></section>
+    <section id="tab-goals" class="tab-panel"></section>
+    <section id="tab-orgstructure" class="tab-panel"></section>
+    <section id="tab-northstar" class="tab-panel"></section>
+    <section id="tab-workshop" class="tab-panel"></section>
+    <section id="tab-placement" class="tab-panel"></section>
+    <section id="tab-landscape" class="tab-panel"></section>
+    <section id="tab-architecture" class="tab-panel"></section>
+    <section id="tab-assumptions" class="tab-panel"></section>
+    <section id="tab-valuemodel" class="tab-panel"></section>
+    <section id="tab-storyline" class="tab-panel"></section>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="js/model.js?v=1"></script>
+<script src="js/charts.js?v=1"></script>
+<script src="js/app.js?v=1"></script>
+</body>
+</html>
