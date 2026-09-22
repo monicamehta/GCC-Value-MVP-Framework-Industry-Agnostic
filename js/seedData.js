@@ -106,7 +106,7 @@ const SEED_VOICE_OF_BUSINESS = [
     "id": "vob_005",
     "stakeholder": "Director Platform Delivery",
     "lineOfBusiness": "Digital, Data & Technology",
-    "region": "Asia Pacific",
+    "region": "Global",
     "theme": "Delivery speed",
     "painPoint": "Change backlog keeps growing because delivery capacity is fixed and specialist skills are scarce.",
     "businessImpact": "Medium",
