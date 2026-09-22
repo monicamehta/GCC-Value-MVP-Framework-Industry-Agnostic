@@ -20,7 +20,7 @@ Opening `index.html` directly from Finder will not work — browsers block `file
 
 ## Where data comes from
 
-You provide five tabs. The model produces the rest.
+You provide six tabs. The model produces the rest.
 
 ```mermaid
 flowchart TD
@@ -45,7 +45,9 @@ flowchart TD
     SCOPE --> LEVERS
 
     LEVERS --> VM["Tab 10 MVP Value Model<br/>arbitrage + automation +<br/>application + risk + revenue"]
-    VM --> STORY["Tab 11 Executive Storyline"]
+    VM --> SUCCESS["Tab 11 Success Criteria<br/>INPUT: baselines and targets"]
+    SUCCESS --> STORY["Tab 12 Executive Storyline"]
+    VM --> STORY
     VOB --> STORY
     GOALS --> STORY
     ORG --> STORY
@@ -140,7 +142,19 @@ The parallel-run assumption deserves attention — it is the cost most often omi
 
 **Value it creates:** this is the decision artefact. It answers the only three questions an executive committee asks: what value, what cost, when does it pay back. The lever decomposition matters because a case that is 100% labour arbitrage is a different proposition from one with automation and risk avoidance — the first is a one-off saving, the second is a capability. Capabilities retained at the power house claim zero value, so the total is never inflated by work that is not moving.
 
-### Tab 11 — Executive Storyline
+### Tab 11 — Success Criteria
+
+**Captures:** per measure — the value horizon (Deliver Better, Operate Better, Change the Game), the success measure, line of business, verified baseline, year 1 and year 3 targets, accountable owner, and review cadence.
+
+**Feeds:** the Executive Storyline, and a coverage check against the MVP scope.
+
+**Value it creates:** this is what converts a forecast into an accountable commitment. Tab 10 says what value the GCC *should* create; this tab is how anyone will ever know whether it did.
+
+The tab deliberately makes two failures visible. First, a criterion with no verified baseline cannot be proven — a benefit with no starting point gets challenged by finance and cannot be claimed, so the share of annual value actually covered by a measurable baseline is shown in cash terms. Second, a line of business can be in the MVP with nothing agreed to measure it by; those are listed by name, because transferring work without a measure of whether the transfer worked is how a GCC loses its mandate at the first review.
+
+The horizon split matters commercially: a scorecard weighted only to Operate Better proves a saving, while one carrying Change the Game measures proves a capability. That is the difference between a cost centre and a capability centre.
+
+### Tab 12 — Executive Storyline
 
 **Generates:** a narrative connecting business evidence to the value case across nine blocks — what the business told us, the goals, the mandate, what moves and stays, MVP scope, value created, where value comes from, what is deliberately not moving, how success is measured, and what must be decided now. Downloadable as text.
 

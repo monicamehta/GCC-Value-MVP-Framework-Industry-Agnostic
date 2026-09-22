@@ -1020,21 +1020,32 @@ function renderPlacement(container) {
 
 function renderSuccessCriteria(container) {
   container.appendChild(el("div", { class: "panel-header" }, [
-    el("h2", {}, ["8. Operating Model Success Criteria"]),
+    el("h2", {}, ["11. Success Criteria"]),
     el("p", { class: "panel-desc" }, [
-      "How the enterprise will judge whether the GCC is working, across three horizons: Deliver Better, Operate Better, and Change the Game. A criterion without a baseline or an owner cannot be proven, so it is flagged here rather than discovered a year later."
+      "How the enterprise will judge whether the GCC is working, across three horizons: Deliver Better, Operate Better, and Change the Game. Value in Tab 10 is only a forecast until it is measured against a baseline, so a criterion without a baseline or a named owner is flagged here rather than discovered a year later."
     ])
   ]));
 
   const rows = state.successCriteria;
-  if (rows.length) {
+  const mvp = buildThreeYearCase(mvpCandidates(state), state.assumptions);
+
+  if (!rows.length) {
+    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
+      el("h4", {}, ["No success criteria defined"]),
+      el("p", {}, [fmtUSD(mvp.annualValue) + " of annual value is being claimed in Tab 10 with no agreed way to prove it. Define at least one measure per line of business in the MVP before the case goes to a decision forum."])
+    ]));
+  } else {
     const withBaseline = rows.filter((row) => row.baseline && String(row.baseline).trim());
     const withOwner = rows.filter((row) => row.owner && String(row.owner).trim());
+    const provableShare = withBaseline.length / rows.length;
+
     container.appendChild(el("div", { class: "card-grid" }, [
       el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [String(rows.length)]), el("div", { class: "stat-label" }, ["Success criteria defined"])]),
-      el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtPct((withBaseline.length / rows.length) * 100)]), el("div", { class: "stat-label" }, ["Have a verified baseline"])]),
+      el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtPct(provableShare * 100)]), el("div", { class: "stat-label" }, ["Have a verified baseline"])]),
       el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtPct((withOwner.length / rows.length) * 100)]), el("div", { class: "stat-label" }, ["Have a named owner"])]),
-      el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(rows.length - withBaseline.length)]), el("div", { class: "stat-label" }, ["Cannot yet be proven"])])
+      el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(rows.length - withBaseline.length)]), el("div", { class: "stat-label" }, ["Cannot yet be proven"])]),
+      el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [fmtUSD(mvp.annualValue)]), el("div", { class: "stat-label" }, ["Annual value to be proven"])]),
+      el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtUSD(mvp.annualValue * provableShare)]), el("div", { class: "stat-label" }, ["Covered by a measurable baseline"])])
     ]));
 
     const horizons = ["Deliver Better", "Operate Better", "Change the Game"];
@@ -1045,14 +1056,36 @@ function renderSuccessCriteria(container) {
       { name: "With verified baseline", color: "#2f6fed", values: horizons.map((horizon) => rows.filter((row) => row.horizon === horizon && row.baseline).length) }
     ], { height: 320, yFormat: (value) => Math.round(value), xLabelFontSize: "11px", showLegend: true });
 
+    // A line of business can be in the MVP and still have nothing agreed to measure it by.
+    const measured = new Set(rows.map((row) => row.lineOfBusiness).filter(Boolean));
+    const uncovered = [...new Set(mvpCandidates(state).map((row) => row.lineOfBusiness).filter(Boolean))]
+      .filter((lob) => !measured.has(lob));
+    if (uncovered.length) {
+      container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
+        el("h4", {}, ["Lines of business in the MVP with no success measure"]),
+        el("p", {}, [uncovered.join(", ") + ". These are transferring to the GCC with no agreed measure of whether the transfer worked. Value claimed here cannot be defended at the first review."])
+      ]));
+    }
+
     const unprovable = rows.filter((row) => !row.baseline || !String(row.baseline).trim());
     if (unprovable.length) {
-      container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
+      container.appendChild(el("div", { class: "story-block", style: "border-left-color:#f9a825" }, [
         el("h4", {}, ["Criteria that cannot be proven yet"]),
         el("p", {}, [unprovable.map((row) => row.metric).join("; ") +
           ". Capture the baseline before go-live, because a benefit with no starting point will be challenged by finance and cannot be claimed."])
       ]));
     }
+
+    const horizonGuide = el("div", { class: "story-block" }, [
+      el("h4", {}, ["What the three horizons mean"]),
+      el("p", {}, [
+        "Deliver Better is throughput and quality of what the GCC produces: cycle time, lead time, coverage. " +
+        "Operate Better is the cost and reliability of running it: unit cost, schedule compliance, days to close. " +
+        "Change the Game is whether the GCC became a capability rather than a cost centre: reusable automation in production, share of specialist roles, products owned. " +
+        "A case weighted only to Operate Better proves a saving; one with Change the Game measures proves a capability."
+      ])
+    ]);
+    container.appendChild(horizonGuide);
   }
 
   renderRegister(container, CONFIG_SUCCESS);
@@ -1269,7 +1302,7 @@ function renderStoryline(container) {
   const highImpactVoices = state.voiceOfBusiness.filter((row) => row.businessImpact === "High");
 
   container.appendChild(el("div", { class: "panel-header" }, [
-    el("h2", {}, ["11. Executive Storyline"]),
+    el("h2", {}, ["12. Executive Storyline"]),
     el("p", { class: "panel-desc" }, ["A generated narrative that connects business evidence to the MVP value case. Use it as the spine of the executive readout."])
   ]));
 
@@ -1416,6 +1449,7 @@ const TAB_RENDERERS = {
   architecture: renderArchitecture,
   assumptions: renderAssumptions,
   valuemodel: renderValueModel,
+  success: renderSuccessCriteria,
   storyline: renderStoryline
 };
 
