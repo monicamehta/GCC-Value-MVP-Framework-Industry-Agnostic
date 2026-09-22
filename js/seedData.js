@@ -121,17 +121,17 @@ const SEED_ORGANIZATION_STRUCTURE = [
     "region": "North America",
     "lineOfBusiness": "Production Operations",
     "teamSizeFTE": 240,
-    "revenueUSD": 4200000000,
-    "operatingCostUSD": 1450000000,
-    "notes": "Core operated production base; largest transferable back-office and surveillance footprint."
+    "revenueUSD": 5400000000,
+    "operatingCostUSD": 3900000000,
+    "notes": "Operated production base and the largest surveillance, reporting and planning footprint."
   },
   {
     "id": "org_002",
     "region": "Global",
     "lineOfBusiness": "Supply Chain",
     "teamSizeFTE": 150,
-    "revenueUSD": 0,
-    "operatingCostUSD": 520000000,
+    "revenueUSD": 360000000,
+    "operatingCostUSD": 250000000,
     "notes": "Global source-to-pay and materials management; highly standardised and rules based."
   },
   {
@@ -139,26 +139,26 @@ const SEED_ORGANIZATION_STRUCTURE = [
     "region": "North America",
     "lineOfBusiness": "Commercial & Partnerships",
     "teamSizeFTE": 133,
-    "revenueUSD": 2600000000,
-    "operatingCostUSD": 240000000,
-    "notes": "Marketing, trading support and joint-venture accounting for partner-operated assets."
+    "revenueUSD": 2400000000,
+    "operatingCostUSD": 1850000000,
+    "notes": "Marketing, trading support and joint-venture accounting for operated and partner assets."
   },
   {
     "id": "org_004",
     "region": "North America",
     "lineOfBusiness": "HSE & Sustainability",
     "teamSizeFTE": 126,
-    "revenueUSD": 0,
-    "operatingCostUSD": 180000000,
-    "notes": "Safety, environmental and emissions assurance; reporting is transferable, field presence is not."
+    "revenueUSD": 120000000,
+    "operatingCostUSD": 78000000,
+    "notes": "Safety, integrity assurance and emissions reporting across all operated assets."
   },
   {
     "id": "org_005",
     "region": "North America",
     "lineOfBusiness": "Maintenance & Integrity",
     "teamSizeFTE": 120,
-    "revenueUSD": 0,
-    "operatingCostUSD": 610000000,
+    "revenueUSD": 840000000,
+    "operatingCostUSD": 700000000,
     "notes": "Planning, scheduling and integrity engineering; execution stays at the asset."
   },
   {
@@ -166,8 +166,8 @@ const SEED_ORGANIZATION_STRUCTURE = [
     "region": "North America",
     "lineOfBusiness": "Facilities & Projects",
     "teamSizeFTE": 108,
-    "revenueUSD": 0,
-    "operatingCostUSD": 540000000,
+    "revenueUSD": 720000000,
+    "operatingCostUSD": 610000000,
     "notes": "Capital project engineering and FEED support across the portfolio."
   },
   {
@@ -175,17 +175,17 @@ const SEED_ORGANIZATION_STRUCTURE = [
     "region": "Global",
     "lineOfBusiness": "Digital, Data & Technology",
     "teamSizeFTE": 96,
-    "revenueUSD": 0,
-    "operatingCostUSD": 270000000,
-    "notes": "Platform engineering, data products and application operations."
+    "revenueUSD": 180000000,
+    "operatingCostUSD": 130000000,
+    "notes": "Platform engineering, data products and application operations, including licences."
   },
   {
     "id": "org_008",
     "region": "Europe",
     "lineOfBusiness": "Finance",
     "teamSizeFTE": 80,
-    "revenueUSD": 0,
-    "operatingCostUSD": 150000000,
+    "revenueUSD": 84000000,
+    "operatingCostUSD": 48000000,
     "notes": "Transactional and statutory finance separated before transfer decisions."
   },
   {
@@ -193,8 +193,8 @@ const SEED_ORGANIZATION_STRUCTURE = [
     "region": "Europe",
     "lineOfBusiness": "People & Organisation",
     "teamSizeFTE": 63,
-    "revenueUSD": 0,
-    "operatingCostUSD": 120000000,
+    "revenueUSD": 60000000,
+    "operatingCostUSD": 38000000,
     "notes": "HR operations, payroll support and competency administration."
   },
   {
@@ -202,8 +202,8 @@ const SEED_ORGANIZATION_STRUCTURE = [
     "region": "Europe",
     "lineOfBusiness": "Governance, Risk & Assurance",
     "teamSizeFTE": 28,
-    "revenueUSD": 0,
-    "operatingCostUSD": 75000000,
+    "revenueUSD": 36000000,
+    "operatingCostUSD": 22000000,
     "notes": "Internal audit, risk and compliance reporting; sign-off stays with the entity."
   },
   {
@@ -211,26 +211,26 @@ const SEED_ORGANIZATION_STRUCTURE = [
     "region": "North America",
     "lineOfBusiness": "Reservoir & Field Development",
     "teamSizeFTE": 20,
-    "revenueUSD": 900000000,
-    "operatingCostUSD": 160000000,
-    "notes": "Reservoir management and development planning for operated fields."
+    "revenueUSD": 960000000,
+    "operatingCostUSD": 520000000,
+    "notes": "Reservoir management and development planning that sets future production."
   },
   {
     "id": "org_012",
     "region": "North America",
     "lineOfBusiness": "Exploration & Subsurface",
     "teamSizeFTE": 10,
-    "revenueUSD": 0,
-    "operatingCostUSD": 95000000,
-    "notes": "Exploration screening and subsurface evaluation."
+    "revenueUSD": 240000000,
+    "operatingCostUSD": 180000000,
+    "notes": "Exploration screening and subsurface evaluation feeding the resource base."
   },
   {
     "id": "org_013",
     "region": "North America",
     "lineOfBusiness": "Wells & Drilling",
     "teamSizeFTE": 10,
-    "revenueUSD": 0,
-    "operatingCostUSD": 140000000,
+    "revenueUSD": 600000000,
+    "operatingCostUSD": 430000000,
     "notes": "Well delivery and real-time drilling support."
   }
 ];

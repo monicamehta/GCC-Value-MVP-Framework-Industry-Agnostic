@@ -15,7 +15,8 @@ function el(tag, attrs, children) {
 }
 
 function fmtUSD(value) {
-  return "$" + Math.round(num(value)).toLocaleString();
+  const amount = Math.round(num(value));
+  return (amount < 0 ? "-$" : "$") + Math.abs(amount).toLocaleString();
 }
 
 function fmtPct(value, digits) {
