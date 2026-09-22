@@ -505,7 +505,7 @@ const CONFIG_CANDIDATES = {
   key: "workshopCandidates",
   title: "5. Workshop Capture — Capability Candidates",
   singular: "Candidate",
-  description: "Score each candidate capability live in the workshop. Readiness, transfer share, annual value, and the MVP wave are calculated automatically from these inputs, so the room can see the value impact of every scoring decision immediately.",
+  description: "Score each candidate capability live in the workshop. Readiness, transfer share, annual value, and the wave are calculated automatically from these inputs. Model Wave is what the readiness thresholds in Tab 9 recommend; MVP Wave is what actually counts, which follows the agreed decision in Tab 6 unless you switch the scope source in Tab 9.",
   columns: [
     { key: "capability", label: "Capability / Process", type: "text" },
     { key: "lineOfBusiness", label: "Line of Business", type: "text" },
@@ -542,13 +542,21 @@ const CONFIG_CANDIDATES = {
     { key: "annualValue", label: "Annual Value", render: (row) => el("td", { style: "font-weight:600" }, [fmtUSD(computeCandidate(row, state.assumptions).annualValue)]) },
     { key: "investment", label: "Investment", render: (row) => el("td", {}, [fmtUSD(computeCandidate(row, state.assumptions).investment)]) },
     {
+      key: "modelWave", label: "Model Wave",
+      render: (row) => {
+        const computed = computeCandidate(row, state.assumptions);
+        const className = { "MVP Wave 1": "pill-green", "Wave 2 / Hybrid": "pill-amber", "Retain / Improve First": "pill-red" }[computed.modelWave] || "pill-grey";
+        return el("td", {}, [el("span", { class: "pill " + className }, [computed.modelWave])]);
+      }
+    },
+    {
       key: "wave", label: "MVP Wave",
       render: (row) => {
         const computed = computeCandidate(row, state.assumptions);
         const className = { "MVP Wave 1": "pill-green", "Wave 2 / Hybrid": "pill-amber", "Retain / Improve First": "pill-red" }[computed.wave] || "pill-grey";
         const cell = el("td", {}, [el("span", { class: "pill " + className }, [computed.wave])]);
         if (computed.decisionVariance) {
-          cell.appendChild(el("div", { style: "font-size:11px;color:#64708a;margin-top:4px" }, ["model: " + computed.modelWave]));
+          cell.appendChild(el("div", { style: "font-size:11px;color:#64708a;margin-top:4px" }, ["agreed: " + computed.agreedDecision]));
         }
         return cell;
       }
@@ -707,14 +715,22 @@ function renderAssumptions(container) {
   ]));
 
   const fields = [
+    {
+      key: "mvpScopeSource", label: "MVP scope driven by", type: "select",
+      options: [
+        { value: "agreed", label: "Agreed decisions recorded in Tab 6" },
+        { value: "model", label: "Model readiness thresholds below" }
+      ],
+      hint: "Agreed decisions is the default: leadership's recorded decision sets the MVP wave, and the thresholds below only drive the model recommendation used as the challenge view. Switch to model readiness thresholds to let the scores below set the wave directly."
+    },
     { key: "defaultOnshoreCostPerFTEUSD", label: "Default onshore cost per FTE (USD)", hint: "Used when a candidate has no specific onshore cost." },
     { key: "defaultGccCostPerFTEUSD", label: "Default GCC cost per FTE (USD)", hint: "Fully loaded GCC cost including facilities and management." },
     { key: "setupCostPerFTEUSD", label: "Setup cost per transferred FTE (USD)", hint: "Hiring, knowledge transfer, and onboarding per FTE." },
     { key: "parallelRunMonths", label: "Default parallel run (months)", hint: "Months both teams are paid for the same work. Override per capability in Tab 5; set to 0 to exclude." },
     { key: "maxTransferSharePercent", label: "Maximum transfer share (%)", hint: "Caps how much of a capability can ever move, even at perfect readiness." },
     { key: "maxAutomationSavingPercent", label: "Maximum automation saving (%)", hint: "Saving applied at automation potential 5 of 5." },
-    { key: "wave1ThresholdPercent", label: "MVP Wave 1 readiness threshold (%)", hint: "At or above this readiness a candidate enters the MVP." },
-    { key: "wave2ThresholdPercent", label: "Wave 2 readiness threshold (%)", hint: "Below this, foundations are fixed before any transfer." },
+    { key: "wave1ThresholdPercent", label: "MVP Wave 1 readiness threshold (%)", hint: "At or above this readiness the model recommends a candidate for the MVP. This only changes the MVP wave when MVP scope is driven by model readiness thresholds." },
+    { key: "wave2ThresholdPercent", label: "Wave 2 readiness threshold (%)", hint: "Below this, the model says foundations are fixed before any transfer. This only changes the MVP wave when MVP scope is driven by model readiness thresholds." },
     { key: "rampYear1Percent", label: "Year 1 value realisation (%)", hint: "Share of steady-state value realised in year one." },
     { key: "rampYear2Percent", label: "Year 2 value realisation (%)", hint: "Share of steady-state value realised in year two." },
     { key: "rampYear3Percent", label: "Year 3 value realisation (%)", hint: "Share of steady-state value realised in year three." },
@@ -724,9 +740,24 @@ function renderAssumptions(container) {
 
   const form = el("div", { class: "settings-form" });
   fields.forEach((field) => {
-    const input = el("input", { type: "number" });
-    input.value = state.assumptions[field.key];
-    input.addEventListener("input", (event) => { state.assumptions[field.key] = num(event.target.value); });
+    let input;
+    if (field.type === "select") {
+      input = el("select");
+      field.options.forEach((option) => {
+        const optionEl = el("option", { value: option.value }, [option.label]);
+        if (String(state.assumptions[field.key]) === option.value) optionEl.setAttribute("selected", "selected");
+        input.appendChild(optionEl);
+      });
+      input.addEventListener("change", (event) => {
+        state.assumptions[field.key] = event.target.value;
+        saveState(state);
+        renderActiveTab();
+      });
+    } else {
+      input = el("input", { type: "number" });
+      input.value = state.assumptions[field.key];
+      input.addEventListener("input", (event) => { state.assumptions[field.key] = num(event.target.value); });
+    }
     form.appendChild(el("div", { class: "settings-row" }, [el("label", {}, [field.label]), input]));
     form.appendChild(el("div", { class: "settings-hint" }, [field.hint]));
   });
@@ -746,7 +777,8 @@ function renderAssumptions(container) {
     ["Parallel run cost", "Transferable FTE x GCC cost per FTE x (parallel run months / 12). This is the period both teams are paid for the same work."],
     ["Investment", "Setup cost + one-time transition cost + parallel run cost."],
     ["Payback", "First year where cumulative realised value exceeds cumulative investment."],
-    ["Line of business placement", "Transferable FTE divided by total FTE for the line of business, compared against the move and hybrid thresholds."]
+    ["Line of business placement", "Transferable FTE divided by total FTE for the line of business, compared against the move and hybrid thresholds."],
+    ["MVP wave", "Follows the agreed decision recorded in Tab 6. Switch MVP scope source in this tab to let the readiness thresholds set the wave instead."]
   ];
   const table = el("table", { class: "data-table" });
   table.appendChild(el("thead", {}, [el("tr", {}, [el("th", {}, ["Measure"]), el("th", {}, ["Calculation"])])]));

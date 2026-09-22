@@ -28,6 +28,7 @@ function optionalNumber(value, fallback) {
 
 function defaultAssumptions() {
   return {
+    mvpScopeSource: "agreed",
     defaultOnshoreCostPerFTEUSD: 120000,
     defaultGccCostPerFTEUSD: 42000,
     setupCostPerFTEUSD: 9000,
@@ -128,8 +129,10 @@ function computeCandidate(candidate, assumptions) {
   const readinessPercent = computeReadinessPercent(candidate);
   const modelWave = waveFor(readinessPercent, assumptions);
   const agreedDecision = String(candidate.agreedDecision || "").trim();
-  const wave = AGREED_DECISION_WAVE[agreedDecision] || modelWave;
-  const decisionVariance = !!agreedDecision && wave !== modelWave;
+  const agreedWave = AGREED_DECISION_WAVE[agreedDecision] || "";
+  // Scope normally follows the agreed decision; switching the source makes the thresholds govern instead.
+  const wave = (assumptions.mvpScopeSource === "model" ? "" : agreedWave) || modelWave;
+  const decisionVariance = !!agreedWave && agreedWave !== modelWave;
 
   // Retained capabilities claim no value: nothing moves until the constraint is fixed.
   const isRetained = wave === "Retain / Improve First";
