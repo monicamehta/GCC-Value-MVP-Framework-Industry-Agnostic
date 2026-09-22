@@ -28,7 +28,6 @@ function optionalNumber(value, fallback) {
 
 function defaultAssumptions() {
   return {
-    mvpScopeSource: "agreed",
     defaultOnshoreCostPerFTEUSD: 120000,
     defaultGccCostPerFTEUSD: 42000,
     setupCostPerFTEUSD: 9000,
@@ -97,13 +96,21 @@ function waveFor(readinessPercent, assumptions) {
   return "Retain / Improve First";
 }
 
-/* Leadership records a decision per capability, so an agreed decision overrides the
-   score-based recommendation. The model recommendation is kept alongside it so the
-   variance stays visible instead of being silently overwritten. */
+/* Placement decisions are generated from the workshop scores. Leadership can override
+   an individual capability, and only those overridden rows survive a recalculation. */
+const PLACEMENT_SOURCE_MODEL = "model";
+const PLACEMENT_SOURCE_LEADERSHIP = "leadership";
+
 const AGREED_DECISION_WAVE = {
   "Move to GCC": "MVP Wave 1",
   "Hybrid / Shared": "Wave 2 / Hybrid",
   "Remain at Power House": "Retain / Improve First"
+};
+
+const WAVE_DECISION = {
+  "MVP Wave 1": "Move to GCC",
+  "Wave 2 / Hybrid": "Hybrid / Shared",
+  "Retain / Improve First": "Remain at Power House"
 };
 
 function capabilityKey(value) {
@@ -111,16 +118,54 @@ function capabilityKey(value) {
 }
 
 // The "GCC Owns" column of the placement register holds the capability name.
+function syncPlacementRegister(state) {
+  const existing = {};
+  (state.lobPlacements || []).forEach((row) => {
+    const key = capabilityKey(row.gccOwns);
+    if (key) existing[key] = row;
+  });
+
+  const rows = [];
+  (state.workshopCandidates || []).forEach((candidate) => {
+    const key = capabilityKey(candidate.capability);
+    if (!key) return;
+    const modelDecision = WAVE_DECISION[waveFor(computeReadinessPercent(candidate), state.assumptions)];
+    const row = existing[key] || { id: uid("lob"), gccOwns: candidate.capability };
+    delete existing[key];
+    row.lineOfBusiness = candidate.lineOfBusiness || "";
+    row.modelDecision = modelDecision;
+    if (row.source !== PLACEMENT_SOURCE_LEADERSHIP) {
+      row.source = PLACEMENT_SOURCE_MODEL;
+      row.decision = modelDecision;
+    }
+    rows.push(row);
+  });
+
+  // A leadership decision for a capability that is no longer scored is kept rather than silently dropped.
+  Object.keys(existing).forEach((key) => {
+    if (existing[key].source === PLACEMENT_SOURCE_LEADERSHIP) rows.push(existing[key]);
+  });
+
+  state.lobPlacements = rows;
+  return state;
+}
+
 function syncAgreedDecisions(state) {
   const index = {};
   (state.lobPlacements || []).forEach((entry) => {
     const key = capabilityKey(entry.gccOwns);
-    if (key) index[key] = String(entry.decision || "").trim();
+    if (key && entry.source === PLACEMENT_SOURCE_LEADERSHIP) index[key] = String(entry.decision || "").trim();
   });
   (state.workshopCandidates || []).forEach((candidate) => {
     candidate.agreedDecision = index[capabilityKey(candidate.capability)] || "";
   });
   return state;
+}
+
+// Everything downstream of the workshop scores is rebuilt here.
+function refreshDerivedState(state) {
+  syncPlacementRegister(state);
+  return syncAgreedDecisions(state);
 }
 
 function computeCandidate(candidate, assumptions) {
@@ -130,8 +175,7 @@ function computeCandidate(candidate, assumptions) {
   const modelWave = waveFor(readinessPercent, assumptions);
   const agreedDecision = String(candidate.agreedDecision || "").trim();
   const agreedWave = AGREED_DECISION_WAVE[agreedDecision] || "";
-  // Scope normally follows the agreed decision; switching the source makes the thresholds govern instead.
-  const wave = (assumptions.mvpScopeSource === "model" ? "" : agreedWave) || modelWave;
+  const wave = agreedWave || modelWave;
   const decisionVariance = !!agreedWave && agreedWave !== modelWave;
 
   // Retained capabilities claim no value: nothing moves until the constraint is fixed.
@@ -244,7 +288,7 @@ function computeLobPlacements(state) {
         lineOfBusiness: lineOfBusiness, totalFTE: 0, transferableFTE: 0, modelTransferableFTE: 0,
         annualValue: 0, investment: 0, capabilityCount: 0,
         wave1: 0, wave2: 0, retained: 0, agreedMove: 0, agreedHybrid: 0, agreedRemain: 0,
-        notAgreed: 0, varianceCount: 0, moving: [], staying: []
+        overrides: 0, varianceCount: 0, moving: [], staying: []
       };
     }
     const group = groups[lineOfBusiness];
@@ -263,11 +307,11 @@ function computeLobPlacements(state) {
     else if (modelOnly.wave === "Wave 2 / Hybrid") group.wave2 += 1;
     else group.retained += 1;
 
-    const agreed = computed.agreedDecision;
-    if (agreed === PLACEMENT_MOVE) group.agreedMove += 1;
-    else if (agreed === PLACEMENT_HYBRID) group.agreedHybrid += 1;
-    else if (agreed === PLACEMENT_REMAIN) group.agreedRemain += 1;
-    else group.notAgreed += 1;
+    const effective = WAVE_DECISION[computed.wave];
+    if (effective === PLACEMENT_MOVE) group.agreedMove += 1;
+    else if (effective === PLACEMENT_HYBRID) group.agreedHybrid += 1;
+    else group.agreedRemain += 1;
+    if (computed.agreedDecision) group.overrides += 1;
 
     if (computed.wave === "Retain / Improve First") group.staying.push(candidate.capability);
     else group.moving.push(candidate.capability);
@@ -284,32 +328,37 @@ function computeLobPlacements(state) {
       else if (!group.agreedMove && !group.agreedHybrid) agreedDecision = PLACEMENT_REMAIN;
       else agreedDecision = PLACEMENT_HYBRID;
     }
-    const reference = state.lobPlacements.find((entry) => entry.lineOfBusiness === group.lineOfBusiness);
     return Object.assign(group, {
       gccSharePercent: gccSharePercent,
       modelSharePercent: modelSharePercent,
       recommendation: placementFor(modelSharePercent, state.assumptions),
-      agreedDecision: agreedDecision,
-      powerHouseRetains: reference ? reference.powerHouseRetains : "",
-      rationale: reference ? reference.rationale : ""
+      agreedDecision: agreedDecision
     });
   }).sort((left, right) => right.annualValue - left.annualValue);
 }
 
-/* Capability-level roll-up of the agreed decisions, which is the level the
-   placement register is actually captured at. */
+/* Capability-level roll-up. Every capability has a decision: the model's, unless
+   leadership recorded an override. */
 function agreedPlacementSummary(state) {
-  const summary = { move: 0, hybrid: 0, remain: 0, notAgreed: 0, variance: 0, total: 0, movingFTE: 0 };
+  const summary = { move: 0, hybrid: 0, remain: 0, overrides: 0, variance: 0, total: 0, movingFTE: 0,
+    modelMove: 0, modelHybrid: 0, modelRemain: 0 };
   state.workshopCandidates.forEach((candidate) => {
     const computed = computeCandidate(candidate, state.assumptions);
     summary.total += 1;
+    if (computed.agreedDecision) summary.overrides += 1;
     if (computed.decisionVariance) summary.variance += 1;
-    if (computed.agreedDecision === PLACEMENT_MOVE) {
+
+    const modelDecision = WAVE_DECISION[computed.modelWave];
+    if (modelDecision === PLACEMENT_MOVE) summary.modelMove += 1;
+    else if (modelDecision === PLACEMENT_HYBRID) summary.modelHybrid += 1;
+    else summary.modelRemain += 1;
+
+    const effective = WAVE_DECISION[computed.wave];
+    if (effective === PLACEMENT_MOVE) {
       summary.move += 1;
       summary.movingFTE += num(candidate.currentFTE);
-    } else if (computed.agreedDecision === PLACEMENT_HYBRID) summary.hybrid += 1;
-    else if (computed.agreedDecision === PLACEMENT_REMAIN) summary.remain += 1;
-    else summary.notAgreed += 1;
+    } else if (effective === PLACEMENT_HYBRID) summary.hybrid += 1;
+    else summary.remain += 1;
   });
   return summary;
 }
@@ -336,7 +385,7 @@ function loadState() {
     ["voiceOfBusiness", "strategicGoals", "organizationStructure", "northStarMandates", "workshopCandidates", "lobPlacements", "processAppMap", "applications", "dataFlows", "successCriteria"].forEach((key) => {
       if (!Array.isArray(merged[key])) merged[key] = [];
     });
-    return syncAgreedDecisions(merged);
+    return refreshDerivedState(merged);
   } catch (error) {
     console.error("Failed to load MVP framework state, starting fresh.", error);
     return emptyState();
@@ -344,7 +393,7 @@ function loadState() {
 }
 
 function saveState(state) {
-  syncAgreedDecisions(state);
+  refreshDerivedState(state);
   state.meta.lastUpdated = new Date().toISOString();
   localStorage.setItem(MVP_STORAGE_KEY, JSON.stringify(state));
 }
@@ -387,10 +436,10 @@ function seedState() {
   state.northStarMandates = cloneRows(SEED_NORTHSTAR_MANDATES);
   state.voiceOfBusiness = cloneRows(SEED_VOICE_OF_BUSINESS);
   state.workshopCandidates = cloneRows(SEED_WORKSHOP_CANDIDATES);
-  state.lobPlacements = cloneRows(SEED_LOB_PLACEMENTS);
+  state.lobPlacements = [];
   state.processAppMap = cloneRows(SEED_PROCESS_APP_MAP);
   state.applications = cloneRows(SEED_APPLICATIONS);
   state.dataFlows = cloneRows(SEED_DATA_FLOWS);
   state.successCriteria = cloneRows(SEED_SUCCESS_CRITERIA);
-  return syncAgreedDecisions(state);
+  return refreshDerivedState(state);
 }

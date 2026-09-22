@@ -242,6 +242,7 @@ function buildForm(config, existingRow) {
       onclick: () => {
         const row = existingRow ? Object.assign({}, existingRow) : { id: uid(config.key) };
         form.querySelectorAll("[data-key]").forEach((field) => { row[field.dataset.key] = field.value; });
+        if (config.onSave) config.onSave(row);
         if (isEdit) {
           const index = state[config.key].findIndex((item) => item.id === existingRow.id);
           state[config.key][index] = row;
@@ -288,6 +289,7 @@ function renderRegister(container, config) {
           const file = event.target.files[0];
           if (!file) return;
           importRowsFromFile(file, config.columns, (imported) => {
+            if (config.onImport) imported.forEach((row) => config.onImport(row));
             const existing = state[config.key].length;
             const replace = existing > 0 && confirm(
               imported.length + " records found.\n\nOK = replace the " + existing + " existing row(s).\nCancel = add them to the existing rows."
@@ -436,14 +438,16 @@ const CONFIG_NORTHSTAR = {
 
 const CONFIG_LOB_DECISION = {
   key: "lobPlacements",
-  title: "Agreed placement decisions",
+  title: "Placement decisions by capability",
   heading: "h3",
   singular: "Decision",
-  description: "Agreed decisions are recorded per capability: the GCC Owns column names the capability the decision applies to. The model recommends a placement from the workshop scores; this register records what leadership actually agreed, and the agreed decision is what drives the MVP scope.",
+  description: "This list is generated from the workshop scores in Tab 5 and refreshes whenever scores or assumptions change. Edit a row to record a leadership decision that overrides the model; the row is then marked Leadership and is never recalculated. Delete an override to hand the capability back to the model.",
+  onSave: (row) => { row.source = "leadership"; },
+  onImport: (row) => { row.source = "leadership"; },
   columns: [
+    { key: "gccOwns", label: "GCC Owns", type: "text" },
     { key: "lineOfBusiness", label: "Line of Business", type: "select-dynamic", options: lobOptions },
     { key: "decision", label: "Agreed Decision", type: "select", options: ["Move to GCC", "Hybrid / Shared", "Remain at Power House"] },
-    { key: "gccOwns", label: "GCC Owns", type: "text" },
     { key: "powerHouseRetains", label: "Power House Retains", type: "textarea" },
     { key: "rationale", label: "Rationale", type: "textarea" }
   ],
@@ -451,13 +455,26 @@ const CONFIG_LOB_DECISION = {
     { key: "gccOwns", label: "Capability (GCC Owns)" },
     { key: "lineOfBusiness", label: "Line of Business" },
     {
+      key: "modelDecision", label: "Model Says",
+      render: (row) => {
+        const className = { "Move to GCC": "pill-green", "Hybrid / Shared": "pill-amber", "Remain at Power House": "pill-red" }[row.modelDecision] || "pill-grey";
+        return el("td", {}, [el("span", { class: "pill " + className }, [row.modelDecision || "\u2014"])]);
+      }
+    },
+    {
       key: "decision", label: "Agreed Decision",
       render: (row) => {
         const className = { "Move to GCC": "pill-green", "Hybrid / Shared": "pill-amber", "Remain at Power House": "pill-red" }[row.decision] || "pill-grey";
         return el("td", {}, [el("span", { class: "pill " + className }, [row.decision || "\u2014"])]);
       }
     },
-    { key: "powerHouseRetains", label: "Power House Retains" },
+    {
+      key: "source", label: "Source",
+      render: (row) => {
+        const isOverride = row.source === "leadership";
+        return el("td", {}, [el("span", { class: "pill " + (isOverride ? "pill-blue" : "pill-grey") }, [isOverride ? "Leadership" : "Model"])]);
+      }
+    },
     { key: "rationale", label: "Rationale" }
   ]
 };
@@ -505,7 +522,7 @@ const CONFIG_CANDIDATES = {
   key: "workshopCandidates",
   title: "5. Workshop Capture — Capability Candidates",
   singular: "Candidate",
-  description: "Score each candidate capability live in the workshop. Readiness, transfer share, annual value, and the wave are calculated automatically from these inputs. Model Wave is what the readiness thresholds in Tab 9 recommend; MVP Wave is what actually counts, which follows the agreed decision in Tab 6 unless you switch the scope source in Tab 9.",
+  description: "Score each candidate capability live in the workshop. Readiness, transfer share, annual value, and the wave are calculated from these scores and the assumptions in Tab 9. Model Wave is the calculated result; MVP Wave is the same unless leadership recorded an override in Tab 6.",
   columns: [
     { key: "capability", label: "Capability / Process", type: "text" },
     { key: "lineOfBusiness", label: "Line of Business", type: "text" },
@@ -715,22 +732,14 @@ function renderAssumptions(container) {
   ]));
 
   const fields = [
-    {
-      key: "mvpScopeSource", label: "MVP scope driven by", type: "select",
-      options: [
-        { value: "agreed", label: "Agreed decisions recorded in Tab 6" },
-        { value: "model", label: "Model readiness thresholds below" }
-      ],
-      hint: "Agreed decisions is the default: leadership's recorded decision sets the MVP wave, and the thresholds below only drive the model recommendation used as the challenge view. Switch to model readiness thresholds to let the scores below set the wave directly."
-    },
     { key: "defaultOnshoreCostPerFTEUSD", label: "Default onshore cost per FTE (USD)", hint: "Used when a candidate has no specific onshore cost." },
     { key: "defaultGccCostPerFTEUSD", label: "Default GCC cost per FTE (USD)", hint: "Fully loaded GCC cost including facilities and management." },
     { key: "setupCostPerFTEUSD", label: "Setup cost per transferred FTE (USD)", hint: "Hiring, knowledge transfer, and onboarding per FTE." },
     { key: "parallelRunMonths", label: "Default parallel run (months)", hint: "Months both teams are paid for the same work. Override per capability in Tab 5; set to 0 to exclude." },
     { key: "maxTransferSharePercent", label: "Maximum transfer share (%)", hint: "Caps how much of a capability can ever move, even at perfect readiness." },
     { key: "maxAutomationSavingPercent", label: "Maximum automation saving (%)", hint: "Saving applied at automation potential 5 of 5." },
-    { key: "wave1ThresholdPercent", label: "MVP Wave 1 readiness threshold (%)", hint: "At or above this readiness the model recommends a candidate for the MVP. This only changes the MVP wave when MVP scope is driven by model readiness thresholds." },
-    { key: "wave2ThresholdPercent", label: "Wave 2 readiness threshold (%)", hint: "Below this, the model says foundations are fixed before any transfer. This only changes the MVP wave when MVP scope is driven by model readiness thresholds." },
+    { key: "wave1ThresholdPercent", label: "MVP Wave 1 readiness threshold (%)", hint: "At or above this readiness the model places a capability in the MVP. Changing it updates Tab 5, Tab 6, and the value model." },
+    { key: "wave2ThresholdPercent", label: "Wave 2 readiness threshold (%)", hint: "Below this the model keeps the capability at the power house until foundations are fixed." },
     { key: "rampYear1Percent", label: "Year 1 value realisation (%)", hint: "Share of steady-state value realised in year one." },
     { key: "rampYear2Percent", label: "Year 2 value realisation (%)", hint: "Share of steady-state value realised in year two." },
     { key: "rampYear3Percent", label: "Year 3 value realisation (%)", hint: "Share of steady-state value realised in year three." },
@@ -740,24 +749,11 @@ function renderAssumptions(container) {
 
   const form = el("div", { class: "settings-form" });
   fields.forEach((field) => {
-    let input;
-    if (field.type === "select") {
-      input = el("select");
-      field.options.forEach((option) => {
-        const optionEl = el("option", { value: option.value }, [option.label]);
-        if (String(state.assumptions[field.key]) === option.value) optionEl.setAttribute("selected", "selected");
-        input.appendChild(optionEl);
-      });
-      input.addEventListener("change", (event) => {
-        state.assumptions[field.key] = event.target.value;
-        saveState(state);
-        renderActiveTab();
-      });
-    } else {
-      input = el("input", { type: "number" });
-      input.value = state.assumptions[field.key];
-      input.addEventListener("input", (event) => { state.assumptions[field.key] = num(event.target.value); });
-    }
+    const input = el("input", { type: "number" });
+    input.value = state.assumptions[field.key];
+    input.addEventListener("input", (event) => { state.assumptions[field.key] = num(event.target.value); });
+    // Recalculate on blur so every downstream tab reflects the new assumption immediately.
+    input.addEventListener("change", () => { saveState(state); });
     form.appendChild(el("div", { class: "settings-row" }, [el("label", {}, [field.label]), input]));
     form.appendChild(el("div", { class: "settings-hint" }, [field.hint]));
   });
@@ -778,7 +774,7 @@ function renderAssumptions(container) {
     ["Investment", "Setup cost + one-time transition cost + parallel run cost."],
     ["Payback", "First year where cumulative realised value exceeds cumulative investment."],
     ["Line of business placement", "Transferable FTE divided by total FTE for the line of business, compared against the move and hybrid thresholds."],
-    ["MVP wave", "Follows the agreed decision recorded in Tab 6. Switch MVP scope source in this tab to let the readiness thresholds set the wave instead."]
+    ["MVP wave", "Derived from readiness against the thresholds above, unless leadership recorded an override for that capability in Tab 6."]
   ];
   const table = el("table", { class: "data-table" });
   table.appendChild(el("thead", {}, [el("tr", {}, [el("th", {}, ["Measure"]), el("th", {}, ["Calculation"])])]));
@@ -880,31 +876,23 @@ function renderPlacement(container) {
 
   container.appendChild(el("div", { class: "card-grid" }, [
     el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.total)]), el("div", { class: "stat-label" }, ["Capabilities assessed"])]),
-    el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [String(agreed.move)]), el("div", { class: "stat-label" }, ["Agreed to move to GCC"])]),
-    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.hybrid)]), el("div", { class: "stat-label" }, ["Agreed hybrid / shared"])]),
-    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.remain)]), el("div", { class: "stat-label" }, ["Agreed remain at power house"])]),
+    el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [String(agreed.move)]), el("div", { class: "stat-label" }, ["Move to GCC"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.hybrid)]), el("div", { class: "stat-label" }, ["Hybrid / shared"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.remain)]), el("div", { class: "stat-label" }, ["Remain at power house"])]),
     el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(placements.length)]), el("div", { class: "stat-label" }, ["Lines of business assessed"])]),
-    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.variance)]), el("div", { class: "stat-label" }, ["Differ from model recommendation"])])
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.overrides)]), el("div", { class: "stat-label" }, ["Leadership overrides"])])
   ]));
 
-  if (agreed.notAgreed) {
-    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
-      el("h4", {}, ["Capabilities with no agreed decision"]),
-      el("p", {}, [agreed.notAgreed + " of " + agreed.total + " capabilities have no recorded decision, so they fall back to the model recommendation. Import or record a decision for each one before the case is presented."])
-    ]));
-  }
-
-  if (agreed.variance) {
-    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#f9a825" }, [
-      el("h4", {}, ["Why the model recommendation and the agreed decision differ"]),
-      el("p", {}, [
-        agreed.variance + " of " + agreed.total + " capabilities differ. The model recommendation is derived only from the five workshop readiness scores: standardization, remote transferability, automation potential, data readiness, and local constraint. " +
-        "The agreed decision additionally weighs business value, strategic importance, and technology sharedness, which are not part of the readiness score. " +
-        "A capability can therefore score well on readiness and still be kept at the power house because it is not strategically worth moving first, or score moderately and still be moved because it unlocks a shared platform. " +
-        "The agreed decision governs the MVP scope and the value model; the model recommendation is retained as the challenge view."
-      ])
-    ]));
-  }
+  container.appendChild(el("div", { class: "story-block" }, [
+    el("h4", {}, ["How this view is produced"]),
+    el("p", {}, [
+      "Every placement starts from the workshop scores in Tab 5: readiness is scored, compared against the thresholds in Tab 9, and turned into a recommendation. " +
+      "On the current assumptions the model recommends " + agreed.modelMove + " to move, " + agreed.modelHybrid + " hybrid, and " + agreed.modelRemain + " to remain. " +
+      (agreed.overrides
+        ? "Leadership has overridden " + agreed.overrides + " of " + agreed.total + " capabilities, of which " + agreed.variance + " changed the wave. Overrides are never recalculated; delete one to return that capability to the model."
+        : "No leadership overrides are recorded, so the model result stands in full. Edit any row in the register below to record an override.")
+    ])
+  ]));
 
   const shareCard = el("div", { class: "chart-card" }, [el("h4", {}, ["Share of effort that can move to the GCC, by line of business"])]);
   container.appendChild(shareCard);
@@ -929,7 +917,7 @@ function renderPlacement(container) {
 
   const table = el("table", { class: "data-table" });
   table.appendChild(el("thead", {}, [el("tr", {},
-    ["Line of Business", "Capabilities", "Total FTE", "Transferable FTE", "GCC Share", "Annual Value", "Agreed: Move", "Agreed: Remain", "Model Recommendation", "Agreed Decision"].map((heading) => el("th", {}, [heading]))
+    ["Line of Business", "Capabilities", "Total FTE", "Transferable FTE", "GCC Share", "Annual Value", "Move", "Remain", "Overrides", "Model Recommendation", "Net Position"].map((heading) => el("th", {}, [heading]))
   )]));
   const tbody = el("tbody", {});
   placements.forEach((row) => {
@@ -944,6 +932,7 @@ function renderPlacement(container) {
       el("td", { style: "font-weight:600" }, [fmtUSD(row.annualValue)]),
       el("td", { style: "text-align:center;font-weight:600;color:#2e7d32" }, [String(row.agreedMove)]),
       el("td", { style: "text-align:center;font-weight:600;color:#c62828" }, [String(row.agreedRemain)]),
+      el("td", { style: "text-align:center" }, [String(row.overrides)]),
       el("td", {}, [el("span", { class: "pill " + recommendationClass }, [row.recommendation])]),
       el("td", {}, [el("span", { class: "pill " + agreedClass }, [row.agreedDecision || "not agreed"])])
     ]));
@@ -964,23 +953,22 @@ function renderPlacement(container) {
         annualValue: Math.round(row.annualValue),
         agreedMove: row.agreedMove,
         agreedRemain: row.agreedRemain,
+        overrides: row.overrides,
         moving: row.moving.join("; "),
         staying: row.staying.join("; "),
         recommendation: row.recommendation,
-        agreedDecision: row.agreedDecision,
-        powerHouseRetains: row.powerHouseRetains,
-        rationale: row.rationale
+        agreedDecision: row.agreedDecision
       })), [
         { key: "lineOfBusiness", label: "Line of Business" }, { key: "capabilityCount", label: "Capabilities" },
         { key: "totalFTE", label: "Total FTE" },
         { key: "transferableFTE", label: "Transferable FTE" }, { key: "gccSharePercent", label: "GCC Share %" },
         { key: "modelSharePercent", label: "Model Share %" },
         { key: "annualValue", label: "Annual Value (USD)" },
-        { key: "agreedMove", label: "Agreed: Move" }, { key: "agreedRemain", label: "Agreed: Remain" },
+        { key: "agreedMove", label: "Move" }, { key: "agreedRemain", label: "Remain" },
+        { key: "overrides", label: "Leadership Overrides" },
         { key: "moving", label: "Moves to GCC" },
         { key: "staying", label: "Stays at Power House" }, { key: "recommendation", label: "Model Recommendation" },
-        { key: "agreedDecision", label: "Agreed Decision" }, { key: "powerHouseRetains", label: "Power House Retains" },
-        { key: "rationale", label: "Rationale" }
+        { key: "agreedDecision", label: "Net Position" }
       ])
     }, ["Export Placement (CSV)"])
   ]));
@@ -1390,6 +1378,7 @@ const TAB_RENDERERS = {
 let activeTab = "vob";
 
 function renderActiveTab() {
+  refreshDerivedState(state);
   const subtitle = document.getElementById("orgSubtitle");
   subtitle.textContent = (state.meta.client ? state.meta.client + " \u2014 " : "") + (state.meta.engagementName || "GCC Value MVP");
   const container = document.getElementById("tab-" + activeTab);
