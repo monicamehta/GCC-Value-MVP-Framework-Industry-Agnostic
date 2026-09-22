@@ -285,6 +285,7 @@ function buildThreeYearCase(candidates, assumptions) {
     accumulator.setupCost += computed.setupCost;
     accumulator.parallelRunCost += computed.parallelRunCost;
     accumulator.oneTimeCost += computed.oneTimeCost;
+    accumulator.currentFTE += num(candidate.currentFTE);
     accumulator.transferredFTE += computed.transferredFTE;
     accumulator.arbitrageValue += computed.arbitrageValue;
     accumulator.automationValue += computed.automationValue;
@@ -295,7 +296,7 @@ function buildThreeYearCase(candidates, assumptions) {
     accumulator.revenueEnablementValue += computed.revenueEnablementValue;
     return accumulator;
   }, {
-    annualValue: 0, investment: 0, setupCost: 0, parallelRunCost: 0, oneTimeCost: 0, transferredFTE: 0,
+    annualValue: 0, investment: 0, setupCost: 0, parallelRunCost: 0, oneTimeCost: 0, currentFTE: 0, transferredFTE: 0,
     arbitrageValue: 0, automationValue: 0, applicationValue: 0, allocatedLicenseUSD: 0, allocatedSupportUSD: 0,
     riskAvoidanceValue: 0, revenueEnablementValue: 0
   });

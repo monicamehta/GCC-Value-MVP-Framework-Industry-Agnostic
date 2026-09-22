@@ -1326,7 +1326,8 @@ function renderValueModel(container) {
     el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [fmtUSD(mvp.netValue)]), el("div", { class: "stat-label" }, ["3-year net value"])]),
     el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [fmtPct(mvp.roiPercent)]), el("div", { class: "stat-label" }, ["3-year ROI"])]),
     el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [mvp.paybackYear ? "Year " + mvp.paybackYear : "Beyond year 3"]), el("div", { class: "stat-label" }, ["Payback"])]),
-    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [mvp.transferredFTE.toFixed(0)]), el("div", { class: "stat-label" }, ["FTE in MVP scope"])])
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [mvp.currentFTE.toFixed(0)]), el("div", { class: "stat-label" }, ["FTE in MVP scope today"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [mvp.transferredFTE.toFixed(0)]), el("div", { class: "stat-label" }, ["Of which transferable to the GCC"])])
   ]));
 
   container.appendChild(el("div", { class: "panel-header" }, [
@@ -1503,7 +1504,8 @@ function renderStoryline(container) {
           new Set(state.voiceOfBusiness.map((row) => row.lineOfBusiness)).size + " lines of business, of which " +
           highImpactVoices.length + " were rated high impact. The recurring themes are " +
           [...new Set(state.voiceOfBusiness.map((row) => row.theme).filter(Boolean))].join(", ") + "."
-        : "No Voice of Business evidence has been captured yet."
+        : "No Voice of Business evidence has been captured yet.",
+      source: "Tab 1"
     },
     {
       title: "The goals this must serve",
@@ -1511,7 +1513,8 @@ function renderStoryline(container) {
         ? "The GCC is being assessed against " + state.strategicGoals.length + " executive goals owned by " +
           [...new Set(state.strategicGoals.map((goal) => goal.owner).filter(Boolean))].join(", ") +
           ". Every capability in the MVP is linked back to one of these goals so value is traceable."
-        : "No strategic goals recorded yet."
+        : "No strategic goals recorded yet.",
+      source: "Tab 2"
     },
     {
       title: "The mandate we are giving the GCC",
@@ -1519,21 +1522,24 @@ function renderStoryline(container) {
         ? "The GCC is mandated across " + state.northStarMandates.length + " lines of business: " +
           state.northStarMandates.map((mandate) => mandate.lineOfBusiness + " (" + (mandate.gccOwnership || "ownership not set") + ")").join("; ") +
           ". Each mandate names the outcome owned, the decisions the GCC can take alone, and what the power house keeps."
-        : "No North Star mandate has been agreed yet. Without it the GCC will be measured on activity rather than outcomes."
+        : "No North Star mandate has been agreed yet. Without it the GCC will be measured on activity rather than outcomes.",
+      source: "Tab 4"
     },
     {
       title: "What moves and what stays",
       body: placements.length
-        ? "Of " + agreed.total + " capabilities scored, " + agreed.move + " move to the GCC covering " +
-          Math.round(agreed.movingFTE) + " FTE, " + agreed.remain + " remain at the power house" +
+        ? "Of " + agreed.total + " capabilities scored, " + agreed.move + " move to the GCC, " + agreed.remain + " remain at the power house" +
           (agreed.hybrid ? ", and " + agreed.hybrid + " are shared" : "") + ". " +
+          "Those moving cover " + Math.round(agreed.movingFTE) + " FTE today, of which " + mvp.transferredFTE.toFixed(0) +
+          " are assessed as transferable once readiness and the maximum transfer share are applied. " +
           "Lines of business moving wholly or partly to the GCC: " + (movingLobs.concat(hybridLobs).length ? movingLobs.concat(hybridLobs).map((row) => row.lineOfBusiness).join(", ") : "none") +
           ". Remaining entirely at the power house: " + (remainingLobs.length ? remainingLobs.map((row) => row.lineOfBusiness).join(", ") : "none") + ". " +
           (agreed.overrides
             ? "This is the model result adjusted by " + plural(agreed.overrides, "leadership decision") + ", " + agreed.variance +
               " of which changed the wave because business value, strategic importance, and technology sharedness were weighed alongside readiness."
             : "This is the model result in full, derived from the workshop readiness scores against the agreed thresholds. No leadership override has been applied.")
-        : "No line of business placement has been produced yet."
+        : "No line of business placement has been produced yet.",
+      source: "Tabs 5 and 6"
     },
     {
       title: "What the MVP includes",
@@ -1544,7 +1550,8 @@ function renderStoryline(container) {
             .sort((left, right) => right[1] - left[1]).slice(0, 4)
             .map((entry) => entry[0] + " (" + entry[1] + ")").join(", ") +
           ". Scope is set by readiness against the Wave 1 threshold" + (agreed.overrides ? ", adjusted by the recorded leadership decisions" : "") + ", then priced using the workshop scores."
-        : "No capability reaches the Wave 1 threshold, so there is no MVP scope to price yet."
+        : "No capability reaches the Wave 1 threshold, so there is no MVP scope to price yet.",
+      source: "Tabs 5, 6 and 9"
     },
     {
       title: "The value the GCC can create",
@@ -1554,14 +1561,16 @@ function renderStoryline(container) {
         " of net value over three years, a " + fmtPct(mvp.roiPercent) + " three-year ROI and payback in " +
         (mvp.paybackYear ? "year " + mvp.paybackYear : "beyond year three") +
         ". Capabilities retained at the power house claim no value in this case, so the portfolio total stays at " +
-        fmtUSD(portfolio.annualValue) + " until those constraints are resolved and they are reassessed."
+        fmtUSD(portfolio.annualValue) + " until those constraints are resolved and they are reassessed.",
+      source: "Tabs 9 and 10"
     },
     {
       title: "Where the value comes from",
       body: "Labour arbitrage contributes " + fmtUSD(mvp.arbitrageValue) + ", automation and AI " + fmtUSD(mvp.automationValue) +
         ", application run cost " + fmtUSD(mvp.applicationValue) +
         ", risk avoidance " + fmtUSD(mvp.riskAvoidanceValue) + ", and revenue enablement " + fmtUSD(mvp.revenueEnablementValue) +
-        ". The largest single contributors are " + topCapabilities.map((row) => row.capability).join(", ") + "."
+        ". The largest single contributors are " + topCapabilities.map((row) => row.capability).join(", ") + ".",
+      source: "Tabs 8, 9 and 10"
     },
     {
       title: "What we are deliberately not moving",
@@ -1573,7 +1582,8 @@ function renderStoryline(container) {
         return plural(retained.length, "capability", "capabilities") + " stay with the business, concentrated in " +
           byLob.slice(0, 5).map((entry) => entry[0] + " (" + entry[1] + ")").join(", ") +
           ". They are retained because of physical presence, regulatory accountability, or low process standardization. Holding these back protects the credibility of the case rather than inflating it.";
-      })()
+      })(),
+      source: "Tabs 5 and 6"
     },
     {
       title: "How we will deliver and govern it",
@@ -1591,7 +1601,8 @@ function renderStoryline(container) {
             ? plural(gaps.length, "agreed measure", "agreed measures") + " still " + (gaps.length === 1 ? "has" : "have") +
               " no action against " + (gaps.length === 1 ? "it" : "them") + " and cannot improve until that is fixed."
             : "Every agreed measure has at least one action against it.");
-      })()
+      })(),
+      source: "Tabs 11 and 12"
     },
     {
       title: "How we will know it is working",
@@ -1602,20 +1613,26 @@ function renderStoryline(container) {
           withBaseline.length + " have a verified baseline. Examples include " +
           state.successCriteria.slice(0, 3).map((row) => row.metric).join("; ") +
           ". Criteria without a baseline must be measured before go-live or the benefit cannot be claimed.";
-      })()
+      })(),
+      source: "Tab 11"
     },
     {
       title: "What we need to decide now",
       body: "Approve the MVP scope and investment of " + fmtUSD(mvp.investment) +
-        ", confirm the benefit baseline and who validates realised value, and name the accountable business owner for each MVP capability."
+        ", confirm the benefit baseline and who validates realised value, and name the accountable business owner for each MVP capability.",
+      source: "Tabs 10, 11 and 12"
     }
   ];
 
   blocks.forEach((block) => {
-    container.appendChild(el("div", { class: "story-block" }, [
+    const wrapper = el("div", { class: "story-block" }, [
       el("h4", {}, [block.title]),
       el("p", {}, [block.body])
-    ]));
+    ]);
+    if (block.source) {
+      wrapper.appendChild(el("div", { style: "font-size:11px;color:#64708a;margin-top:6px" }, ["Source: " + block.source]));
+    }
+    container.appendChild(wrapper);
   });
 
   container.appendChild(el("div", { class: "panel-actions" }, [
@@ -1623,7 +1640,7 @@ function renderStoryline(container) {
       class: "btn primary",
       onclick: () => downloadFile("gcc-mvp-executive-storyline.txt",
         [state.meta.engagementName || "GCC Value MVP", state.meta.client || "", ""]
-          .concat(blocks.map((block) => block.title.toUpperCase() + "\n" + block.body + "\n")).join("\n"), "text/plain")
+          .concat(blocks.map((block) => block.title.toUpperCase() + "\n" + block.body + (block.source ? "\nSource: " + block.source : "") + "\n")).join("\n"), "text/plain")
     }, ["Download Storyline (TXT)"])
   ]));
 }
