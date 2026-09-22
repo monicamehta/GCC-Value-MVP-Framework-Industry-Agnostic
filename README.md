@@ -20,7 +20,7 @@ Opening `index.html` directly from Finder will not work — browsers block `file
 
 ## Where data comes from
 
-You provide six tabs. The model produces the rest.
+You provide seven tabs. The model produces the rest.
 
 ```mermaid
 flowchart TD
@@ -46,7 +46,9 @@ flowchart TD
 
     LEVERS --> VM["Tab 10 MVP Value Model<br/>arbitrage + automation +<br/>application + risk + revenue"]
     VM --> SUCCESS["Tab 11 Success Criteria<br/>INPUT: baselines and targets"]
-    SUCCESS --> STORY["Tab 12 Executive Storyline"]
+    SUCCESS --> ACT["Tab 12 Actions and Governance<br/>INPUT: interventions and forums"]
+    ACT --> STORY["Tab 13 Executive Storyline"]
+    SUCCESS --> STORY
     VM --> STORY
     VOB --> STORY
     GOALS --> STORY
@@ -154,7 +156,19 @@ The tab deliberately makes two failures visible. First, a criterion with no veri
 
 The horizon split matters commercially: a scorecard weighted only to Operate Better proves a saving, while one carrying Change the Game measures proves a capability. That is the difference between a cost centre and a capability centre.
 
-### Tab 12 — Executive Storyline
+### Tab 12 — Actions & Governance
+
+**Captures:** two registers. **Value actions** — the intervention, the success measure it serves, its type (new capability build, process standardisation, automation & AI, data foundation, technology, knowledge transfer, decision rights, people & retention), line of business, accountable owner, wave, status, and governing forum. **Governance forums** — the decisions each forum owns, its chair, members, cadence, inputs reviewed, and escalation path.
+
+**Feeds:** the Executive Storyline, and coverage checks back against Tab 11.
+
+**Value it creates:** a target does not move because it was written down. This is the tab that closes the gap between a forecast and a delivered number, by forcing two links for every measure — *what are we actually doing about it*, and *who will make sure it happens*.
+
+It flags three failures that otherwise surface a year late: a **success measure with no action against it** is an aspiration and cannot improve; an **action with no named owner** slips quietly; an **action reviewed by no forum** is discovered late. Blocked actions are listed separately with their owner so they can be escalated rather than left to sit.
+
+The action-type split is the honest test of ambition. A plan that is entirely process standardisation delivers a saving; one carrying new capability build and automation delivers a capability. That distinction is what separates a GCC that survives its second budget cycle from one that does not.
+
+### Tab 13 — Executive Storyline
 
 **Generates:** a narrative connecting business evidence to the value case across nine blocks — what the business told us, the goals, the mandate, what moves and stays, MVP scope, value created, where value comes from, what is deliberately not moving, how success is measured, and what must be decided now. Downloadable as text.
 

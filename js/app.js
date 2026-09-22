@@ -44,6 +44,28 @@ function lobOptions(currentState) {
     .concat([{ value: "Enterprise-wide", label: "Enterprise-wide" }]);
 }
 
+function criterionOptions(currentState) {
+  return [{ value: "", label: "(not linked)" }].concat(
+    currentState.successCriteria.map((row) => ({ value: row.id, label: row.metric }))
+  );
+}
+
+function criterionLabel(id) {
+  const row = state.successCriteria.find((item) => item.id === id);
+  return row ? row.metric : "";
+}
+
+function forumOptions(currentState) {
+  return [{ value: "", label: "(no forum)" }].concat(
+    currentState.governanceForums.map((row) => ({ value: row.id, label: row.forum }))
+  );
+}
+
+function forumLabel(id) {
+  const row = state.governanceForums.find((item) => item.id === id);
+  return row ? row.forum : "";
+}
+
 function normalizeHeader(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -519,6 +541,75 @@ const CONFIG_SUCCESS = {
     { key: "targetYear3", label: "Year 3 Target" },
     { key: "owner", label: "Owner" },
     { key: "cadence", label: "Cadence" }
+  ]
+};
+
+const ACTION_TYPES = [
+  "New capability build", "Process standardisation", "Automation & AI", "Data foundation",
+  "Technology / platform", "Knowledge transfer", "Decision rights & policy", "People & retention"
+];
+
+const ACTION_STATUSES = ["Not started", "In progress", "Complete", "Blocked"];
+
+const CONFIG_ACTIONS = {
+  key: "valueActions",
+  title: "Value actions register",
+  heading: "h3",
+  singular: "Action",
+  description: "The interventions that actually move a success measure: capabilities built, processes standardised, automation deployed, data fixed, decision rights granted. Every action names the measure it serves, an owner, and the forum that will hold it to account.",
+  columns: [
+    { key: "action", label: "Action / Initiative", type: "text" },
+    { key: "linkedCriterion", label: "Success Measure Served", type: "select-dynamic", options: criterionOptions },
+    { key: "type", label: "Action Type", type: "select", options: ACTION_TYPES },
+    { key: "lineOfBusiness", label: "Line of Business", type: "select-dynamic", options: lobOptions },
+    { key: "owner", label: "Accountable Owner", type: "text" },
+    { key: "wave", label: "Wave", type: "select", options: ["Wave 1 (0-6m)", "Wave 2 (6-12m)", "Wave 3 (12m+)"] },
+    { key: "status", label: "Status", type: "select", options: ACTION_STATUSES },
+    { key: "governanceForum", label: "Governing Forum", type: "select-dynamic", options: forumOptions },
+    { key: "notes", label: "Notes", type: "textarea" }
+  ],
+  displayColumns: [
+    { key: "action", label: "Action / Initiative" },
+    { key: "linkedCriterion", label: "Success Measure Served", render: (row) => el("td", { style: "font-size:12px;color:#64708a" }, [criterionLabel(row.linkedCriterion) || "(not linked)"]) },
+    { key: "type", label: "Type", render: (row) => el("td", {}, [el("span", { class: "pill pill-blue" }, [row.type || "\u2014"])]) },
+    { key: "lineOfBusiness", label: "Line of Business" },
+    { key: "owner", label: "Owner", render: (row) => row.owner ? el("td", {}, [row.owner]) : el("td", {}, [el("span", { class: "pill pill-red" }, ["unowned"])]) },
+    { key: "wave", label: "Wave" },
+    {
+      key: "status", label: "Status",
+      render: (row) => {
+        const className = { "Complete": "pill-green", "In progress": "pill-amber", "Blocked": "pill-red", "Not started": "pill-grey" }[row.status] || "pill-grey";
+        return el("td", {}, [el("span", { class: "pill " + className }, [row.status || "\u2014"])]);
+      }
+    },
+    { key: "governanceForum", label: "Governing Forum", render: (row) => forumLabel(row.governanceForum)
+      ? el("td", { style: "font-size:12px" }, [forumLabel(row.governanceForum)])
+      : el("td", {}, [el("span", { class: "pill pill-red" }, ["no forum"])]) }
+  ]
+};
+
+const CONFIG_GOVERNANCE = {
+  key: "governanceForums",
+  title: "Governance forums",
+  heading: "h3",
+  singular: "Forum",
+  description: "The forums that decide, review, and enforce. A forum is only real when it names the decisions it owns, who chairs it, what it reviews, and where it escalates.",
+  columns: [
+    { key: "forum", label: "Forum", type: "text" },
+    { key: "purpose", label: "Decisions Owned", type: "textarea" },
+    { key: "chair", label: "Chair", type: "text" },
+    { key: "members", label: "Members", type: "textarea" },
+    { key: "cadence", label: "Cadence", type: "select", options: ["Weekly", "Fortnightly", "Monthly", "Quarterly", "Per wave"] },
+    { key: "inputs", label: "Inputs Reviewed", type: "textarea" },
+    { key: "escalation", label: "Escalates To", type: "text" }
+  ],
+  displayColumns: [
+    { key: "forum", label: "Forum" },
+    { key: "purpose", label: "Decisions Owned" },
+    { key: "chair", label: "Chair" },
+    { key: "cadence", label: "Cadence", render: (row) => el("td", {}, [el("span", { class: "pill pill-blue" }, [row.cadence || "\u2014"])]) },
+    { key: "inputs", label: "Inputs Reviewed" },
+    { key: "escalation", label: "Escalates To" }
   ]
 };
 
@@ -1091,6 +1182,90 @@ function renderSuccessCriteria(container) {
   renderRegister(container, CONFIG_SUCCESS);
 }
 
+/* A target only becomes value when something is done about it and someone is held to
+   account for it. This tab tests both links. */
+function renderRealisation(container) {
+  container.appendChild(el("div", { class: "panel-header" }, [
+    el("h2", {}, ["12. Actions & Governance"]),
+    el("p", { class: "panel-desc" }, [
+      "A success measure states the target; it does not deliver it. This tab records the actions that move each measure \u2014 capabilities built, processes standardised, automation deployed, data fixed, decision rights granted \u2014 and the forums that hold them to account. A measure with no action is an aspiration, and an action with no forum is a good intention."
+    ])
+  ]));
+
+  const actions = state.valueActions;
+  const forums = state.governanceForums;
+  const criteria = state.successCriteria;
+  const actioned = new Set(actions.map((row) => row.linkedCriterion).filter(Boolean));
+  const unactioned = criteria.filter((row) => !actioned.has(row.id));
+  const unowned = actions.filter((row) => !row.owner || !String(row.owner).trim());
+  const ungoverned = actions.filter((row) => !forumLabel(row.governanceForum));
+  const complete = actions.filter((row) => row.status === "Complete");
+  const blocked = actions.filter((row) => row.status === "Blocked");
+  const coverage = criteria.length ? (criteria.length - unactioned.length) / criteria.length : 0;
+
+  container.appendChild(el("div", { class: "card-grid" }, [
+    el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [String(actions.length)]), el("div", { class: "stat-label" }, ["Actions defined"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtPct(coverage * 100)]), el("div", { class: "stat-label" }, ["Success measures with an action"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(forums.length)]), el("div", { class: "stat-label" }, ["Governance forums"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(unowned.length)]), el("div", { class: "stat-label" }, ["Actions with no owner"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(ungoverned.length)]), el("div", { class: "stat-label" }, ["Actions with no forum"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(blocked.length)]), el("div", { class: "stat-label" }, ["Blocked"])])
+  ]));
+
+  if (actions.length) {
+    const statusCard = el("div", { class: "chart-card" }, [el("h4", {}, ["Actions by type and status"])]);
+    container.appendChild(statusCard);
+    const types = ACTION_TYPES.filter((type) => actions.some((row) => row.type === type));
+    renderBarChart(statusCard, types, [
+      { name: "Planned or in progress", color: "#0f766e", values: types.map((type) => actions.filter((row) => row.type === type && row.status !== "Complete").length) },
+      { name: "Complete", color: "#2f6fed", values: types.map((type) => actions.filter((row) => row.type === type && row.status === "Complete").length) }
+    ], { height: 340, yFormat: (value) => Math.round(value), xLabelFontSize: "10px", xLabelRotation: -22, showLegend: true });
+  }
+
+  if (unactioned.length) {
+    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
+      el("h4", {}, ["Success measures with nothing being done"]),
+      el("p", {}, [unactioned.map((row) => row.metric).join("; ") +
+        ". These targets have been agreed but no action is recorded against them, so there is no mechanism by which they improve. Either add the intervention or withdraw the measure."])
+    ]));
+  }
+
+  if (unowned.length || ungoverned.length) {
+    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#f9a825" }, [
+      el("h4", {}, ["Accountability gaps"]),
+      el("p", {}, [
+        (unowned.length ? plural(unowned.length, "action has", "actions have") + " no named owner. " : "") +
+        (ungoverned.length ? plural(ungoverned.length, "action is", "actions are") + " not reviewed by any forum. " : "") +
+        "Work without a name against it slips quietly, and work reviewed nowhere is discovered late."
+      ])
+    ]));
+  }
+
+  if (blocked.length) {
+    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
+      el("h4", {}, ["Blocked actions"]),
+      el("p", {}, [blocked.map((row) => row.action + " (" + (row.owner || "unowned") + ")").join("; ") +
+        ". Each of these is holding back the measure it serves; escalate through the governing forum rather than letting it sit."])
+    ]));
+  }
+
+  container.appendChild(el("div", { class: "story-block" }, [
+    el("h4", {}, ["How value actually lands"]),
+    el("p", {}, [
+      "Evidence sets the goal, the workshop scores the capability, and the value model prices it \u2014 but none of that changes a number in the business. " +
+      "Value lands when a capability is built, a process is standardised, automation is deployed, or a decision right is granted, and when a named person reports progress to a forum that can act. " +
+      complete.length + " of " + actions.length + " actions are complete. Track the balance here, prove the movement in Tab 11, and claim the value in Tab 10 only once the Value Realisation Board accepts it."
+    ])
+  ]));
+
+  const actionWrap = el("div", {});
+  const forumWrap = el("div", { style: "margin-top:28px" });
+  container.appendChild(actionWrap);
+  container.appendChild(forumWrap);
+  renderRegister(actionWrap, CONFIG_ACTIONS);
+  renderRegister(forumWrap, CONFIG_GOVERNANCE);
+}
+
 function renderValueModel(container) {
   const mvpRows = mvpCandidates(state);
   const mvp = buildThreeYearCase(mvpRows, state.assumptions);
@@ -1302,7 +1477,7 @@ function renderStoryline(container) {
   const highImpactVoices = state.voiceOfBusiness.filter((row) => row.businessImpact === "High");
 
   container.appendChild(el("div", { class: "panel-header" }, [
-    el("h2", {}, ["12. Executive Storyline"]),
+    el("h2", {}, ["13. Executive Storyline"]),
     el("p", { class: "panel-desc" }, ["A generated narrative that connects business evidence to the MVP value case. Use it as the spine of the executive readout."])
   ]));
 
@@ -1401,6 +1576,24 @@ function renderStoryline(container) {
       })()
     },
     {
+      title: "How we will deliver and govern it",
+      body: (function () {
+        if (!state.valueActions.length) return "No delivery actions have been recorded, so the value case has targets but no mechanism to reach them.";
+        const actioned = new Set(state.valueActions.map((row) => row.linkedCriterion).filter(Boolean));
+        const gaps = state.successCriteria.filter((row) => !actioned.has(row.id));
+        const byType = Object.entries(state.valueActions.reduce((acc, row) => { acc[row.type] = (acc[row.type] || 0) + 1; return acc; }, {}))
+          .sort((left, right) => right[1] - left[1]).slice(0, 4);
+        return state.valueActions.length + " actions are in flight to move the agreed measures, weighted towards " +
+          byType.map((entry) => entry[0].toLowerCase() + " (" + entry[1] + ")").join(", ") + ". " +
+          "They are held to account through " + plural(state.governanceForums.length, "forum") + ": " +
+          state.governanceForums.map((row) => row.forum + " (" + (row.cadence || "cadence not set") + ")").join("; ") + ". " +
+          (gaps.length
+            ? plural(gaps.length, "agreed measure", "agreed measures") + " still " + (gaps.length === 1 ? "has" : "have") +
+              " no action against " + (gaps.length === 1 ? "it" : "them") + " and cannot improve until that is fixed."
+            : "Every agreed measure has at least one action against it.");
+      })()
+    },
+    {
       title: "How we will know it is working",
       body: (function () {
         if (!state.successCriteria.length) return "No success criteria have been agreed yet, so realised value cannot be proven.";
@@ -1450,6 +1643,7 @@ const TAB_RENDERERS = {
   assumptions: renderAssumptions,
   valuemodel: renderValueModel,
   success: renderSuccessCriteria,
+  realisation: renderRealisation,
   storyline: renderStoryline
 };
 

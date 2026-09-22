@@ -3254,3 +3254,228 @@ const SEED_SUCCESS_CRITERIA = [
   }
 ];
 
+const SEED_GOVERNANCE_FORUMS = [
+  {
+    "id": "gov_001",
+    "forum": "GCC Steering Committee",
+    "purpose": "Approves MVP scope, releases investment tranches, and resolves escalated placement disputes between the GCC and the power house.",
+    "chair": "Chief Operating Officer (GCC Sponsor)",
+    "members": "CFO, CTO, Chief Data Officer, Chief HSE & Compliance Officer, GCC Managing Director, line-of-business owners",
+    "cadence": "Monthly",
+    "inputs": "MVP value model, placement variance, transition milestones, risk log",
+    "escalation": "Executive Committee"
+  },
+  {
+    "id": "gov_002",
+    "forum": "Value Realisation Board",
+    "purpose": "Validates realised value against the agreed baselines and approves or rejects benefit claims before they are booked.",
+    "chair": "CFO delegate",
+    "members": "Finance business partners, GCC Managing Director, benefit owners, PMO",
+    "cadence": "Monthly",
+    "inputs": "Success criteria actuals versus baseline, benefit claim register, assumption changes",
+    "escalation": "GCC Steering Committee"
+  },
+  {
+    "id": "gov_003",
+    "forum": "Service Performance Review",
+    "purpose": "Reviews delivered service against agreed measures for each line of business and agrees corrective action.",
+    "chair": "Line-of-business owner (rotating)",
+    "members": "GCC service leads, process owners, retained team leads",
+    "cadence": "Monthly",
+    "inputs": "Operate Better and Deliver Better measures, exception volumes, SLA attainment",
+    "escalation": "GCC Steering Committee"
+  },
+  {
+    "id": "gov_004",
+    "forum": "Transition Gate Review",
+    "purpose": "Approves go-live for each capability and authorises the retained team to stand down, ending the parallel run.",
+    "chair": "GCC Managing Director",
+    "members": "Transition leads, process owners, HSE and compliance representation, finance",
+    "cadence": "Per wave",
+    "inputs": "Knowledge transfer completion, quality in shadow running, parallel run cost to date",
+    "escalation": "GCC Steering Committee"
+  },
+  {
+    "id": "gov_005",
+    "forum": "Data & Technology Design Authority",
+    "purpose": "Approves data standards, integration patterns, and AI model governance so automation is reusable rather than local.",
+    "chair": "Chief Data Officer",
+    "members": "Enterprise architects, data product owners, OT and IT security, GCC platform leads",
+    "cadence": "Fortnightly",
+    "inputs": "Architecture change requests, data quality measures, automation asset register",
+    "escalation": "GCC Steering Committee"
+  }
+];
+
+const SEED_VALUE_ACTIONS = [
+  {
+    "id": "act_001",
+    "action": "Stand up a production surveillance and optimisation pod in the GCC",
+    "linkedCriterion": "sc_001",
+    "type": "New capability build",
+    "lineOfBusiness": "Production Operations",
+    "owner": "VP Operations",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_003",
+    "notes": "Remote surveillance and deviation analysis; intervention decisions remain at the asset."
+  },
+  {
+    "id": "act_002",
+    "action": "Standardise the daily and monthly production reporting pack across regions",
+    "linkedCriterion": "sc_002",
+    "type": "Process standardisation",
+    "lineOfBusiness": "Production Operations",
+    "owner": "Head of Production Reporting",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_003",
+    "notes": "Removes regional report variants that currently block a single source of truth."
+  },
+  {
+    "id": "act_003",
+    "action": "Deploy predictive maintenance analytics on rotating equipment",
+    "linkedCriterion": "sc_003",
+    "type": "Automation & AI",
+    "lineOfBusiness": "Maintenance & Integrity",
+    "owner": "Head of Maintenance & Integrity",
+    "wave": "Wave 2 (6-12m)",
+    "status": "Not started",
+    "governanceForum": "gov_005",
+    "notes": "Depends on the equipment master data clean-up completing first."
+  },
+  {
+    "id": "act_004",
+    "action": "Centralise maintenance planning and scheduling into the GCC",
+    "linkedCriterion": "sc_003",
+    "type": "New capability build",
+    "lineOfBusiness": "Maintenance & Integrity",
+    "owner": "GCC Maintenance Planning Lead",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_004",
+    "notes": "Execution, permits and technical authority stay on the asset."
+  },
+  {
+    "id": "act_005",
+    "action": "Automate invoice matching and goods receipt processing",
+    "linkedCriterion": "sc_004",
+    "type": "Automation & AI",
+    "lineOfBusiness": "Supply Chain",
+    "owner": "Chief Procurement Officer",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_005",
+    "notes": "Highest-volume rules-based transaction set in the portfolio."
+  },
+  {
+    "id": "act_006",
+    "action": "Consolidate supplier and materials master data",
+    "linkedCriterion": "sc_004",
+    "type": "Data foundation",
+    "lineOfBusiness": "Supply Chain",
+    "owner": "Master Data Lead",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_005",
+    "notes": "Prerequisite for touchless invoice matching."
+  },
+  {
+    "id": "act_007",
+    "action": "Automate reconciliation and the period close checklist",
+    "linkedCriterion": "sc_005",
+    "type": "Automation & AI",
+    "lineOfBusiness": "Finance",
+    "owner": "Head of Finance Operations",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_002",
+    "notes": "Statutory sign-off remains with the legal entity."
+  },
+  {
+    "id": "act_008",
+    "action": "Stand up release engineering and CI/CD pod for owned platforms",
+    "linkedCriterion": "sc_006",
+    "type": "New capability build",
+    "lineOfBusiness": "Digital, Data & Technology",
+    "owner": "Director Platform Delivery",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_005",
+    "notes": "Target is monthly release cadence on the applications the GCC owns."
+  },
+  {
+    "id": "act_009",
+    "action": "Build the enterprise KPI layer on the data platform",
+    "linkedCriterion": "sc_007",
+    "type": "Data foundation",
+    "lineOfBusiness": "Digital, Data & Technology",
+    "owner": "Chief Data Officer",
+    "wave": "Wave 2 (6-12m)",
+    "status": "Not started",
+    "governanceForum": "gov_005",
+    "notes": "Single definition per KPI, published and versioned."
+  },
+  {
+    "id": "act_010",
+    "action": "Implement the data governance and ownership model",
+    "linkedCriterion": "sc_007",
+    "type": "Decision rights & policy",
+    "lineOfBusiness": "Digital, Data & Technology",
+    "owner": "Data Governance Lead",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_005",
+    "notes": "Names an accountable owner for every enterprise data domain."
+  },
+  {
+    "id": "act_011",
+    "action": "Automate barrier status and emissions reporting from the HSE system",
+    "linkedCriterion": "sc_008",
+    "type": "Automation & AI",
+    "lineOfBusiness": "HSE & Sustainability",
+    "owner": "Chief HSE & Compliance Officer",
+    "wave": "Wave 2 (6-12m)",
+    "status": "Not started",
+    "governanceForum": "gov_005",
+    "notes": "Regulator interface and site accountability are unchanged."
+  },
+  {
+    "id": "act_012",
+    "action": "Establish a reusable automation asset library and reuse standard",
+    "linkedCriterion": "sc_009",
+    "type": "New capability build",
+    "lineOfBusiness": "Digital, Data & Technology",
+    "owner": "GCC Automation Lead",
+    "wave": "Wave 2 (6-12m)",
+    "status": "Not started",
+    "governanceForum": "gov_005",
+    "notes": "Stops automation being rebuilt per line of business; the core of the Change the Game measure."
+  },
+  {
+    "id": "act_013",
+    "action": "Define GCC product owner and specialist career paths",
+    "linkedCriterion": "sc_010",
+    "type": "People & retention",
+    "lineOfBusiness": "People & Organisation",
+    "owner": "GCC Managing Director",
+    "wave": "Wave 1 (0-6m)",
+    "status": "In progress",
+    "governanceForum": "gov_001",
+    "notes": "Without a specialist track the GCC stays a transactional centre."
+  },
+  {
+    "id": "act_014",
+    "action": "Launch a retention and rotation programme for critical GCC roles",
+    "linkedCriterion": "sc_011",
+    "type": "People & retention",
+    "lineOfBusiness": "People & Organisation",
+    "owner": "HR Business Partner",
+    "wave": "Wave 2 (6-12m)",
+    "status": "Not started",
+    "governanceForum": "gov_001",
+    "notes": "Attrition baseline must be captured before this can be judged."
+  }
+];
+
+

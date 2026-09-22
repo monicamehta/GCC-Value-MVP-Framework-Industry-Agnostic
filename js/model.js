@@ -65,6 +65,8 @@ function emptyState() {
     applications: [],
     dataFlows: [],
     successCriteria: [],
+    valueActions: [],
+    governanceForums: [],
     assumptions: defaultAssumptions()
   };
 }
@@ -440,7 +442,7 @@ function loadState() {
       meta: Object.assign(emptyState().meta, parsed.meta || {}),
       assumptions: Object.assign(defaultAssumptions(), parsed.assumptions || {})
     });
-    ["voiceOfBusiness", "strategicGoals", "organizationStructure", "northStarMandates", "workshopCandidates", "lobPlacements", "processAppMap", "applications", "dataFlows", "successCriteria"].forEach((key) => {
+    ["voiceOfBusiness", "strategicGoals", "organizationStructure", "northStarMandates", "workshopCandidates", "lobPlacements", "processAppMap", "applications", "dataFlows", "successCriteria", "valueActions", "governanceForums"].forEach((key) => {
       if (!Array.isArray(merged[key])) merged[key] = [];
     });
     return refreshDerivedState(merged);
@@ -499,5 +501,7 @@ function seedState() {
   state.applications = cloneRows(SEED_APPLICATIONS);
   state.dataFlows = cloneRows(SEED_DATA_FLOWS);
   state.successCriteria = cloneRows(SEED_SUCCESS_CRITERIA);
+  state.valueActions = cloneRows(SEED_VALUE_ACTIONS);
+  state.governanceForums = cloneRows(SEED_GOVERNANCE_FORUMS);
   return refreshDerivedState(state);
 }
