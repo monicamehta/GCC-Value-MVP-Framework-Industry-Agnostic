@@ -24,38 +24,51 @@ You provide seven tabs. The model produces the rest.
 
 ```mermaid
 flowchart TD
-    VOB["Tab 1 Voice of Business<br/>INPUT"]
-    GOALS["Tab 2 Strategic Goals<br/>INPUT"]
-    ORG["Tab 3 Organisation Structure<br/>INPUT"]
-    NS["Tab 4 North Star and Mandate<br/>INPUT"]
-    WS["Tab 5 Workshop Capture<br/>INPUT: scores and FTE"]
-    APP["Tab 8 Application Inventory<br/>INPUT: licence and support cost"]
-    ASSUM["Tab 9 Value Assumptions<br/>INPUT: rates and thresholds"]
+    subgraph IN["Inputs you provide"]
+        VOB["Tab 1 Voice of Business"]
+        GOALS["Tab 2 Strategic Goals"]
+        ORG["Tab 3 Organisation Structure"]
+        NS["Tab 4 North Star and Mandate"]
+        WS["Tab 5 Workshop Capture<br/>capability scores and FTE"]
+        LAND["Tab 7 Capability Landscape<br/>documentation only"]
+        APP["Tab 8 Application Inventory<br/>licence and support cost"]
+        ASSUM["Tab 9 Value Assumptions<br/>rates and thresholds"]
+        OVR["Leadership override<br/>optional, per capability"]
+        SC["Tab 11 Success Criteria<br/>baselines and targets"]
+        ACT["Tab 12 Actions and Governance<br/>interventions and forums"]
+    end
 
-    WS --> READY["Readiness percent<br/>Model Wave"]
+    subgraph CALC["Calculated by the model"]
+        READY["Readiness percent<br/>and Model Wave"]
+        ALLOC["Application cost<br/>allocated per capability"]
+        PLACE["Tab 6 GCC vs Power House<br/>placement per capability"]
+        VM["Tab 10 MVP Value Model<br/>value, investment, payback"]
+        STORY["Tab 13 Executive Storyline"]
+    end
+
+    WS --> READY
     ASSUM --> READY
-    APP --> ALLOC["Allocate app cost to capability<br/>by line of business, split by FTE"]
+    READY --> PLACE
+    OVR -.->|"overrides the model"| PLACE
+
     WS --> ALLOC
+    APP --> ALLOC
 
-    READY --> PLACE["Tab 6 GCC vs Power House<br/>GENERATED"]
-    PLACE --> OVR{"Leadership<br/>override?"}
+    PLACE --> VM
+    ALLOC --> VM
+    ASSUM --> VM
 
-    OVR --> SCOPE["MVP scope"]
-    ALLOC --> LEVERS["Value levers"]
-    SCOPE --> LEVERS
-
-    LEVERS --> VM["Tab 10 MVP Value Model<br/>arbitrage + automation +<br/>application + risk + revenue"]
-    VM --> SUCCESS["Tab 11 Success Criteria<br/>INPUT: baselines and targets"]
-    SUCCESS --> ACT["Tab 12 Actions and Governance<br/>INPUT: interventions and forums"]
-    ACT --> STORY["Tab 13 Executive Storyline"]
-    SUCCESS --> STORY
     VM --> STORY
     VOB --> STORY
     GOALS --> STORY
     ORG --> STORY
     NS --> STORY
+    SC --> STORY
+    ACT --> STORY
 
-    LAND["Tab 7 Capability Landscape<br/>documentation only"]
+    VM -.->|"value to be proven"| SC
+    SC -.->|"measures to be moved"| ACT
+    LAND -.->|"explains the scores"| WS
 ```
 
 Changing anything in Tab 5 or Tab 9 recalculates Tabs 5, 6 and 10 together.
