@@ -10,6 +10,11 @@ function uid(prefix) {
   return (prefix || "id") + "_" + Math.random().toString(36).slice(2, 9);
 }
 
+// Seed rows are copied so repeated sample loads never mutate the shared dataset.
+function cloneRows(rows) {
+  return (rows || []).map((row) => Object.assign({}, row));
+}
+
 function num(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -91,11 +96,40 @@ function waveFor(readinessPercent, assumptions) {
   return "Retain / Improve First";
 }
 
+/* Leadership records a decision per capability, so an agreed decision overrides the
+   score-based recommendation. The model recommendation is kept alongside it so the
+   variance stays visible instead of being silently overwritten. */
+const AGREED_DECISION_WAVE = {
+  "Move to GCC": "MVP Wave 1",
+  "Hybrid / Shared": "Wave 2 / Hybrid",
+  "Remain at Power House": "Retain / Improve First"
+};
+
+function capabilityKey(value) {
+  return String(value === undefined || value === null ? "" : value).trim().toLowerCase();
+}
+
+// The "GCC Owns" column of the placement register holds the capability name.
+function syncAgreedDecisions(state) {
+  const index = {};
+  (state.lobPlacements || []).forEach((entry) => {
+    const key = capabilityKey(entry.gccOwns);
+    if (key) index[key] = String(entry.decision || "").trim();
+  });
+  (state.workshopCandidates || []).forEach((candidate) => {
+    candidate.agreedDecision = index[capabilityKey(candidate.capability)] || "";
+  });
+  return state;
+}
+
 function computeCandidate(candidate, assumptions) {
   const onshoreCost = num(candidate.onshoreCostPerFTEUSD) || assumptions.defaultOnshoreCostPerFTEUSD;
   const gccCost = num(candidate.gccCostPerFTEUSD) || assumptions.defaultGccCostPerFTEUSD;
   const readinessPercent = computeReadinessPercent(candidate);
-  const wave = waveFor(readinessPercent, assumptions);
+  const modelWave = waveFor(readinessPercent, assumptions);
+  const agreedDecision = String(candidate.agreedDecision || "").trim();
+  const wave = AGREED_DECISION_WAVE[agreedDecision] || modelWave;
+  const decisionVariance = !!agreedDecision && wave !== modelWave;
 
   // Retained capabilities claim no value: nothing moves until the constraint is fixed.
   const isRetained = wave === "Retain / Improve First";
@@ -133,6 +167,9 @@ function computeCandidate(candidate, assumptions) {
     oneTimeCost,
     investment,
     isRetained,
+    modelWave,
+    agreedDecision,
+    decisionVariance,
     wave
   };
 }
@@ -192,47 +229,86 @@ function placementFor(gccSharePercent, assumptions) {
 
 /* Aggregates capability-level scores into a line-of-business view so the
    enterprise can see what moves to the GCC and what stays at the power house. */
+/* The model recommendation is scored from workshop data alone, while the agreed
+   decision is a capability-level business judgement. Both shares are aggregated
+   separately so the variance between them can be reported rather than hidden. */
 function computeLobPlacements(state) {
   const groups = {};
   state.workshopCandidates.forEach((candidate) => {
     const lineOfBusiness = candidate.lineOfBusiness || "Unassigned";
     if (!groups[lineOfBusiness]) {
       groups[lineOfBusiness] = {
-        lineOfBusiness: lineOfBusiness, totalFTE: 0, transferableFTE: 0, annualValue: 0, investment: 0,
-        wave1: 0, wave2: 0, retained: 0, moving: [], staying: []
+        lineOfBusiness: lineOfBusiness, totalFTE: 0, transferableFTE: 0, modelTransferableFTE: 0,
+        annualValue: 0, investment: 0, capabilityCount: 0,
+        wave1: 0, wave2: 0, retained: 0, agreedMove: 0, agreedHybrid: 0, agreedRemain: 0,
+        notAgreed: 0, varianceCount: 0, moving: [], staying: []
       };
     }
     const group = groups[lineOfBusiness];
     const computed = computeCandidate(candidate, state.assumptions);
+    const modelOnly = computeCandidate(Object.assign({}, candidate, { agreedDecision: "" }), state.assumptions);
+
+    group.capabilityCount += 1;
     group.totalFTE += num(candidate.currentFTE);
     group.transferableFTE += computed.transferredFTE;
+    group.modelTransferableFTE += modelOnly.transferredFTE;
     group.annualValue += computed.annualValue;
     group.investment += computed.investment;
-    if (computed.wave === "MVP Wave 1") {
-      group.wave1 += 1;
-      group.moving.push(candidate.capability);
-    } else if (computed.wave === "Wave 2 / Hybrid") {
-      group.wave2 += 1;
-      group.moving.push(candidate.capability);
-    } else {
-      group.retained += 1;
-      group.staying.push(candidate.capability);
-    }
+    if (computed.decisionVariance) group.varianceCount += 1;
+
+    if (modelOnly.wave === "MVP Wave 1") group.wave1 += 1;
+    else if (modelOnly.wave === "Wave 2 / Hybrid") group.wave2 += 1;
+    else group.retained += 1;
+
+    const agreed = computed.agreedDecision;
+    if (agreed === PLACEMENT_MOVE) group.agreedMove += 1;
+    else if (agreed === PLACEMENT_HYBRID) group.agreedHybrid += 1;
+    else if (agreed === PLACEMENT_REMAIN) group.agreedRemain += 1;
+    else group.notAgreed += 1;
+
+    if (computed.wave === "Retain / Improve First") group.staying.push(candidate.capability);
+    else group.moving.push(candidate.capability);
   });
 
   return Object.keys(groups).map((key) => {
     const group = groups[key];
     const gccSharePercent = group.totalFTE > 0 ? (group.transferableFTE / group.totalFTE) * 100 : 0;
-    const decision = state.lobPlacements.find((entry) => entry.lineOfBusiness === group.lineOfBusiness);
+    const modelSharePercent = group.totalFTE > 0 ? (group.modelTransferableFTE / group.totalFTE) * 100 : 0;
+    const agreedCount = group.agreedMove + group.agreedHybrid + group.agreedRemain;
+    let agreedDecision = "";
+    if (agreedCount) {
+      if (group.agreedMove && !group.agreedHybrid && !group.agreedRemain) agreedDecision = PLACEMENT_MOVE;
+      else if (!group.agreedMove && !group.agreedHybrid) agreedDecision = PLACEMENT_REMAIN;
+      else agreedDecision = PLACEMENT_HYBRID;
+    }
+    const reference = state.lobPlacements.find((entry) => entry.lineOfBusiness === group.lineOfBusiness);
     return Object.assign(group, {
       gccSharePercent: gccSharePercent,
-      recommendation: placementFor(gccSharePercent, state.assumptions),
-      agreedDecision: decision ? decision.decision : "",
-      gccOwns: decision ? decision.gccOwns : "",
-      powerHouseRetains: decision ? decision.powerHouseRetains : "",
-      rationale: decision ? decision.rationale : ""
+      modelSharePercent: modelSharePercent,
+      recommendation: placementFor(modelSharePercent, state.assumptions),
+      agreedDecision: agreedDecision,
+      powerHouseRetains: reference ? reference.powerHouseRetains : "",
+      rationale: reference ? reference.rationale : ""
     });
   }).sort((left, right) => right.annualValue - left.annualValue);
+}
+
+/* Capability-level roll-up of the agreed decisions, which is the level the
+   placement register is actually captured at. */
+function agreedPlacementSummary(state) {
+  const summary = { move: 0, hybrid: 0, remain: 0, notAgreed: 0, variance: 0, total: 0, movingFTE: 0 };
+  state.workshopCandidates.forEach((candidate) => {
+    const computed = computeCandidate(candidate, state.assumptions);
+    summary.total += 1;
+    if (computed.decisionVariance) summary.variance += 1;
+    if (computed.agreedDecision === PLACEMENT_MOVE) {
+      summary.move += 1;
+      summary.movingFTE += num(candidate.currentFTE);
+    } else if (computed.agreedDecision === PLACEMENT_HYBRID) summary.hybrid += 1;
+    else if (computed.agreedDecision === PLACEMENT_REMAIN) summary.remain += 1;
+    else summary.notAgreed += 1;
+  });
+  return summary;
 }
 
 function lineOfBusinessNames(state) {
@@ -257,7 +333,7 @@ function loadState() {
     ["voiceOfBusiness", "strategicGoals", "organizationStructure", "northStarMandates", "workshopCandidates", "lobPlacements", "processAppMap", "applications", "dataFlows", "successCriteria"].forEach((key) => {
       if (!Array.isArray(merged[key])) merged[key] = [];
     });
-    return merged;
+    return syncAgreedDecisions(merged);
   } catch (error) {
     console.error("Failed to load MVP framework state, starting fresh.", error);
     return emptyState();
@@ -265,6 +341,7 @@ function loadState() {
 }
 
 function saveState(state) {
+  syncAgreedDecisions(state);
   state.meta.lastUpdated = new Date().toISOString();
   localStorage.setItem(MVP_STORAGE_KEY, JSON.stringify(state));
 }
@@ -298,94 +375,19 @@ function exportArrayAsCSV(filename, rows, columns) {
 }
 
 /* ---------------- Seed data ---------------- */
+/* The dataset lives in js/seedData.js, generated from the workshop input files. */
 function seedState() {
   const state = emptyState();
-  state.meta.engagementName = "Industry-Agnostic GCC Value MVP";
-  state.meta.client = "Enterprise Example (illustrative)";
-  state.meta.facilitator = "GCC Advisory Team";
-  state.meta.workshopDate = "2026-10-08";
-
-  const goalService = uid("goal");
-  const goalCost = uid("goal");
-  const goalData = uid("goal");
-  const goalSpeed = uid("goal");
-
-  state.strategicGoals = [
-    { id: goalService, goal: "Improve service reliability and cycle-time performance across regions", owner: "COO", horizon: "Medium (1-2y)", successMeasure: "Service SLA attainment from 82% to 94%", valueType: "Productivity" },
-    { id: goalCost, goal: "Reduce cost-to-serve for repeatable enterprise operations", owner: "CFO", horizon: "Short (0-12m)", successMeasure: "Cost-to-serve reduced 20%", valueType: "Cost" },
-    { id: goalData, goal: "Create trusted, reusable data and reporting products", owner: "Chief Data Officer", horizon: "Medium (1-2y)", successMeasure: "Single source of truth for 80% of KPIs", valueType: "Capability" },
-    { id: goalSpeed, goal: "Accelerate product and change delivery to market", owner: "CTO", horizon: "Long (2-3y)", successMeasure: "Release cycle from quarterly to monthly", valueType: "Speed" }
-  ];
-
-  state.organizationStructure = [
-    { id: uid("org"), region: "North America", lineOfBusiness: "Customer Operations", category: "Service Operations", teamSizeFTE: 520, revenueUSD: 1800000000, operatingCostUSD: 620000000, notes: "High-volume service work with material standardization opportunity." },
-    { id: uid("org"), region: "Europe", lineOfBusiness: "Finance", category: "Corporate Functions", teamSizeFTE: 260, revenueUSD: 1200000000, operatingCostUSD: 280000000, notes: "Transactional and statutory work separated before transfer decisions." },
-    { id: uid("org"), region: "Asia Pacific", lineOfBusiness: "Technology Platforms", category: "Digital & Technology", teamSizeFTE: 340, revenueUSD: 900000000, operatingCostUSD: 360000000, notes: "Platform engineering and application operations footprint." },
-    { id: uid("org"), region: "Global", lineOfBusiness: "Data & Analytics", category: "Enterprise Capabilities", teamSizeFTE: 140, revenueUSD: 0, operatingCostUSD: 150000000, notes: "Shared data products and analytics services across business lines." }
-  ];
-
-  state.northStarMandates = [
-    { id: uid("ns"), lineOfBusiness: "Customer Operations", outcomesOwned: "End-to-end Tier-1 service outcome: resolution rate, cost per contact, and customer effort.", decisionRights: "GCC decides staffing, scheduling, automation backlog, and tooling up to $250K without approval.", productsOwned: "Service desk platform and AI deflection assistant", successMeasure: "Cost per contact and first-contact resolution", gccOwnership: "Full ownership", powerHouseRetains: "Customer policy, pricing, complaint escalation, regulator commitments" },
-    { id: uid("ns"), lineOfBusiness: "Technology Platforms", outcomesOwned: "Application stability and delivery throughput for owned platforms.", decisionRights: "GCC owns release engineering, technical debt backlog, and platform roadmap input.", productsOwned: "Application maintenance and CI/CD pipeline", successMeasure: "Change lead time and change failure rate", gccOwnership: "Full ownership", powerHouseRetains: "Enterprise architecture standards and investment approval" },
-    { id: uid("ns"), lineOfBusiness: "Data & Analytics", outcomesOwned: "Trusted enterprise data products and the KPI layer leadership decides from.", decisionRights: "GCC owns the data product roadmap, modelling standards, and release cadence.", productsOwned: "Enterprise data platform, KPI and reporting products", successMeasure: "KPI coverage from a single source and time to insight", gccOwnership: "Full ownership", powerHouseRetains: "Data governance policy and regulatory data classification" },
-    { id: uid("ns"), lineOfBusiness: "Finance", outcomesOwned: "Billing accuracy and close-cycle predictability for transactional finance.", decisionRights: "GCC owns reconciliation execution and exception handling within agreed tolerance.", productsOwned: "Reconciliation automation and exception workflow", successMeasure: "Days to close and reconciliation exception rate", gccOwnership: "Joint with Power House", powerHouseRetains: "Statutory sign-off, external audit, regulatory filings" },
-    { id: uid("ns"), lineOfBusiness: "Supply Chain", outcomesOwned: "Planning analytics and supplier performance visibility for repeatable planning cycles.", decisionRights: "GCC owns analytics, reporting, and exception workflow improvements.", productsOwned: "Planning analytics workbench", successMeasure: "Forecast accuracy and planning cycle time", gccOwnership: "Joint with Power House", powerHouseRetains: "Supplier negotiations and market-sensitive decisions" }
-  ];
-
-  state.voiceOfBusiness = [
-    { id: uid("vob"), stakeholder: "VP Operations", lineOfBusiness: "Customer Operations", region: "North America", theme: "Manual effort", painPoint: "Teams spend hours consolidating work queues and performance data from multiple tools before decisions are made.", businessImpact: "High", linkedGoal: goalService, quote: "We are data rich and insight poor at the exact moment we need to act." },
-    { id: uid("vob"), stakeholder: "Director Customer Operations", lineOfBusiness: "Customer Operations", region: "Europe", theme: "Cost pressure", painPoint: "Tier-1 support volume grows faster than revenue and is handled by high-cost local teams.", businessImpact: "High", linkedGoal: goalCost, quote: "Every new customer adds cost before it adds margin." },
-    { id: uid("vob"), stakeholder: "Head of Finance Operations", lineOfBusiness: "Finance", region: "Europe", theme: "Reconciliation", painPoint: "Billing and settlement reconciliation is manual and delays month-end close by five days.", businessImpact: "Medium", linkedGoal: goalCost, quote: "We close late every month for reasons we already understand." },
-    { id: uid("vob"), stakeholder: "Chief Data Officer", lineOfBusiness: "Data & Analytics", region: "Global", theme: "Fragmented data", painPoint: "Each region builds its own reports, so leadership debates numbers instead of decisions.", businessImpact: "High", linkedGoal: goalData, quote: "We need one number, not five versions of it." },
-    { id: uid("vob"), stakeholder: "Director Platform Delivery", lineOfBusiness: "Technology Platforms", region: "Asia Pacific", theme: "Delivery speed", painPoint: "Change backlog keeps growing because delivery capacity is fixed and specialist skills are scarce.", businessImpact: "Medium", linkedGoal: goalSpeed, quote: "Good ideas wait in a queue for two quarters." }
-  ];
-
-  state.workshopCandidates = [
-    { id: uid("cand"), capability: "Operations triage & performance monitoring", lineOfBusiness: "Customer Operations", region: "North America", linkedGoal: goalService, currentFTE: 90, onshoreCostPerFTEUSD: 118000, gccCostPerFTEUSD: 40000, standardization: 4, transferability: 4, automationPotential: 4, dataReadiness: 4, localConstraint: 2, riskAvoidanceUSD: 400000, revenueEnablementUSD: 0, oneTimeCostUSD: 250000, notes: "Remote monitoring already proven; accountable customer decisions stay local." },
-    { id: uid("cand"), capability: "Tier-1 customer support & service desk", lineOfBusiness: "Customer Operations", region: "Europe", linkedGoal: goalCost, currentFTE: 140, onshoreCostPerFTEUSD: 96000, gccCostPerFTEUSD: 34000, standardization: 5, transferability: 4, automationPotential: 5, dataReadiness: 4, localConstraint: 2, riskAvoidanceUSD: 150000, revenueEnablementUSD: 300000, oneTimeCostUSD: 300000, parallelRunMonths: 4, notes: "High volume and scripted; strong AI-deflection potential." },
-    { id: uid("cand"), capability: "Billing & settlement reconciliation", lineOfBusiness: "Finance", region: "Europe", linkedGoal: goalCost, currentFTE: 60, onshoreCostPerFTEUSD: 104000, gccCostPerFTEUSD: 36000, standardization: 4, transferability: 4, automationPotential: 4, dataReadiness: 3, localConstraint: 3, riskAvoidanceUSD: 250000, revenueEnablementUSD: 0, oneTimeCostUSD: 180000, parallelRunMonths: 5, notes: "Rules-based once interfaces are stabilised; longer parallel run for close-cycle assurance." },
-    { id: uid("cand"), capability: "Enterprise reporting & data products", lineOfBusiness: "Data & Analytics", region: "Global", linkedGoal: goalData, currentFTE: 45, onshoreCostPerFTEUSD: 132000, gccCostPerFTEUSD: 46000, standardization: 3, transferability: 5, automationPotential: 4, dataReadiness: 3, localConstraint: 2, riskAvoidanceUSD: 0, revenueEnablementUSD: 900000, oneTimeCostUSD: 220000, notes: "Anchor capability for a Data & AI CoE." },
-    { id: uid("cand"), capability: "Application maintenance & release engineering", lineOfBusiness: "Technology Platforms", region: "Asia Pacific", linkedGoal: goalSpeed, currentFTE: 75, onshoreCostPerFTEUSD: 112000, gccCostPerFTEUSD: 38000, standardization: 4, transferability: 5, automationPotential: 3, dataReadiness: 4, localConstraint: 1, riskAvoidanceUSD: 120000, revenueEnablementUSD: 400000, oneTimeCostUSD: 200000, notes: "Clear runway to own platform roadmaps." },
-    { id: uid("cand"), capability: "Regulatory and management reporting", lineOfBusiness: "Finance", region: "Europe", linkedGoal: goalData, currentFTE: 30, onshoreCostPerFTEUSD: 126000, gccCostPerFTEUSD: 44000, standardization: 3, transferability: 3, automationPotential: 3, dataReadiness: 3, localConstraint: 4, riskAvoidanceUSD: 600000, revenueEnablementUSD: 0, oneTimeCostUSD: 150000, notes: "Preparation can move; sign-off stays with the local entity." },
-    { id: uid("cand"), capability: "Location-bound field execution", lineOfBusiness: "Supply Chain", region: "North America", linkedGoal: goalService, currentFTE: 210, onshoreCostPerFTEUSD: 94000, gccCostPerFTEUSD: 38000, standardization: 2, transferability: 1, automationPotential: 2, dataReadiness: 2, localConstraint: 5, riskAvoidanceUSD: 0, revenueEnablementUSD: 0, oneTimeCostUSD: 0, notes: "Physical or market proximity required; retain locally and support remotely." }
-  ];
-
-  state.processAppMap = [
-    { id: uid("pam"), lineOfBusiness: "Customer Operations", capabilityDomain: "Service Management", businessCapability: "Customer Issue Resolution", subProcess: "Intake, triage, fulfilment, escalation", supportingApplications: "CRM, Workflow Platform, Knowledge Base", coverage: "Partial", notes: "Manual routing remains in priority queues." },
-    { id: uid("pam"), lineOfBusiness: "Finance", capabilityDomain: "Record to Report", businessCapability: "Reconciliation & Close", subProcess: "Reconciliation, exception handling, close reporting", supportingApplications: "ERP, Reconciliation Tool", coverage: "Partial", notes: "Duplicate data entry across systems." },
-    { id: uid("pam"), lineOfBusiness: "Data & Analytics", capabilityDomain: "Enterprise Data", businessCapability: "Data Products", subProcess: "Ingestion, modelling, KPI publishing", supportingApplications: "Data Platform, BI Suite", coverage: "Full", notes: "Reusable KPI layer is the target state." },
-    { id: uid("pam"), lineOfBusiness: "Technology Platforms", capabilityDomain: "Platform Engineering", businessCapability: "Release Engineering", subProcess: "Build, test, deploy, observe", supportingApplications: "DevOps Platform, Monitoring Suite", coverage: "Full", notes: "Candidate for GCC product ownership." }
-  ];
-
-  state.applications = [
-    { id: uid("app"), name: "CRM Platform", vendor: "Vendor A", domain: "Customer Operations", hosting: "Cloud", integration: "API", dataDomains: "Customers, Cases, Service History", criticality: "Critical", licenseCostUSD: 650000, supportCostUSD: 220000, renewalDate: "2027-03-31" },
-    { id: uid("app"), name: "ERP Core", vendor: "Vendor B", domain: "Finance", hosting: "Hybrid", integration: "Batch", dataDomains: "Ledger, Cost Centers, Invoices", criticality: "Critical", licenseCostUSD: 900000, supportCostUSD: 360000, renewalDate: "2026-12-31" },
-    { id: uid("app"), name: "Enterprise Data Platform", vendor: "Internal / Cloud", domain: "Data & Analytics", hosting: "Cloud", integration: "API", dataDomains: "Operational KPIs, Master Data", criticality: "High", licenseCostUSD: 300000, supportCostUSD: 180000, renewalDate: "" }
-  ];
-
-  state.dataFlows = [
-    { id: uid("df"), sourceApp: "CRM Platform", dataDomain: "Customer Cases", targetApp: "Enterprise Data Platform", frequency: "Daily", method: "API", notes: "Feeds service performance dashboards." },
-    { id: uid("df"), sourceApp: "ERP Core", dataDomain: "Cost Centers", targetApp: "Enterprise Data Platform", frequency: "Nightly Batch", method: "Batch", notes: "Supports cost-to-serve reporting." }
-  ];
-
-  state.lobPlacements = [
-    { id: uid("lob"), lineOfBusiness: "Customer Operations", decision: "Move to GCC", gccOwns: "Tier-1 contact handling, triage, automation backlog, reporting", powerHouseRetains: "Policy, pricing, complaints escalation, regulator commitments", rationale: "High volume, high standardization, and proven remote delivery with strong AI deflection potential." },
-    { id: uid("lob"), lineOfBusiness: "Technology Platforms", decision: "Move to GCC", gccOwns: "Application maintenance, release engineering, platform roadmap input", powerHouseRetains: "Enterprise architecture standards and investment approval", rationale: "Fully remote-deliverable with scarce local skills and a clear path to platform ownership." },
-    { id: uid("lob"), lineOfBusiness: "Data & Analytics", decision: "Move to GCC", gccOwns: "Data products, KPI layer, reporting engineering, modelling standards", powerHouseRetains: "Data governance policy and regulatory classification", rationale: "Anchor capability for a Data and AI CoE with enterprise-wide reuse." },
-    { id: uid("lob"), lineOfBusiness: "Finance", decision: "Hybrid / Shared", gccOwns: "Billing and settlement reconciliation, exception handling, reporting preparation", powerHouseRetains: "Statutory sign-off, external audit, regulatory filing accountability", rationale: "Execution is rules-based, but accountable sign-off must stay with the legal entity." },
-    { id: uid("lob"), lineOfBusiness: "Supply Chain", decision: "Remain at Power House", gccOwns: "Analytics and performance reporting", powerHouseRetains: "Location-bound execution and supplier decisions", rationale: "Physical or market proximity constrains direct transfer." }
-  ];
-
-  state.successCriteria = [
-    { id: uid("sc"), horizon: "Operate Better", metric: "Cost per Tier-1 customer contact", lineOfBusiness: "Customer Operations", baseline: "$11.40", targetYear1: "$8.50", targetYear3: "$6.00", owner: "Director Customer Operations", cadence: "Monthly" },
-    { id: uid("sc"), horizon: "Operate Better", metric: "Service SLA attainment", lineOfBusiness: "Customer Operations", baseline: "82%", targetYear1: "88%", targetYear3: "94%", owner: "VP Operations", cadence: "Monthly" },
-    { id: uid("sc"), horizon: "Operate Better", metric: "Days to close month-end", lineOfBusiness: "Finance", baseline: "9 days", targetYear1: "6 days", targetYear3: "4 days", owner: "Head of Finance Operations", cadence: "Monthly" },
-    { id: uid("sc"), horizon: "Deliver Better", metric: "Change lead time", lineOfBusiness: "Technology Platforms", baseline: "11 weeks", targetYear1: "6 weeks", targetYear3: "3 weeks", owner: "Director Platform Delivery", cadence: "Quarterly" },
-    { id: uid("sc"), horizon: "Deliver Better", metric: "KPI coverage from a single trusted source", lineOfBusiness: "Data & Analytics", baseline: "35%", targetYear1: "65%", targetYear3: "85%", owner: "Chief Data Officer", cadence: "Quarterly" },
-    { id: uid("sc"), horizon: "Change the Game", metric: "Reusable automation and AI assets in production", lineOfBusiness: "Enterprise-wide", baseline: "2", targetYear1: "8", targetYear3: "20", owner: "GCC Managing Director", cadence: "Quarterly" },
-    { id: uid("sc"), horizon: "Change the Game", metric: "Share of GCC roles in product and specialist positions", lineOfBusiness: "Enterprise-wide", baseline: "12%", targetYear1: "25%", targetYear3: "45%", owner: "GCC Managing Director", cadence: "Half-yearly" },
-    { id: uid("sc"), horizon: "Operate Better", metric: "Voluntary attrition in GCC critical roles", lineOfBusiness: "Enterprise-wide", baseline: "", targetYear1: "below 15%", targetYear3: "below 12%", owner: "HR Business Partner", cadence: "Quarterly" }
-  ];
-
-  return state;
+  Object.assign(state.meta, SEED_META);
+  state.strategicGoals = cloneRows(SEED_STRATEGIC_GOALS);
+  state.organizationStructure = cloneRows(SEED_ORGANIZATION_STRUCTURE);
+  state.northStarMandates = cloneRows(SEED_NORTHSTAR_MANDATES);
+  state.voiceOfBusiness = cloneRows(SEED_VOICE_OF_BUSINESS);
+  state.workshopCandidates = cloneRows(SEED_WORKSHOP_CANDIDATES);
+  state.lobPlacements = cloneRows(SEED_LOB_PLACEMENTS);
+  state.processAppMap = cloneRows(SEED_PROCESS_APP_MAP);
+  state.applications = cloneRows(SEED_APPLICATIONS);
+  state.dataFlows = cloneRows(SEED_DATA_FLOWS);
+  state.successCriteria = cloneRows(SEED_SUCCESS_CRITERIA);
+  return syncAgreedDecisions(state);
 }

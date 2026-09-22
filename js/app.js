@@ -287,10 +287,14 @@ function renderRegister(container, config) {
           const file = event.target.files[0];
           if (!file) return;
           importRowsFromFile(file, config.columns, (imported) => {
-            state[config.key] = state[config.key].concat(imported);
+            const existing = state[config.key].length;
+            const replace = existing > 0 && confirm(
+              imported.length + " records found.\n\nOK = replace the " + existing + " existing row(s).\nCancel = add them to the existing rows."
+            );
+            state[config.key] = replace ? imported : state[config.key].concat(imported);
             saveState(state);
             renderActiveTab();
-            alert(imported.length + " records imported.");
+            alert(imported.length + " records imported (" + (replace ? "replaced existing data" : "added to existing data") + ").");
           });
           event.target.value = "";
         }
@@ -434,15 +438,16 @@ const CONFIG_LOB_DECISION = {
   title: "Agreed placement decisions",
   heading: "h3",
   singular: "Decision",
-  description: "The model recommends a placement from the workshop scores. This register records what leadership actually agreed, including the boundary of what the power house keeps.",
+  description: "Agreed decisions are recorded per capability: the GCC Owns column names the capability the decision applies to. The model recommends a placement from the workshop scores; this register records what leadership actually agreed, and the agreed decision is what drives the MVP scope.",
   columns: [
     { key: "lineOfBusiness", label: "Line of Business", type: "select-dynamic", options: lobOptions },
     { key: "decision", label: "Agreed Decision", type: "select", options: ["Move to GCC", "Hybrid / Shared", "Remain at Power House"] },
-    { key: "gccOwns", label: "GCC Owns", type: "textarea" },
+    { key: "gccOwns", label: "GCC Owns", type: "text" },
     { key: "powerHouseRetains", label: "Power House Retains", type: "textarea" },
     { key: "rationale", label: "Rationale", type: "textarea" }
   ],
   displayColumns: [
+    { key: "gccOwns", label: "Capability (GCC Owns)" },
     { key: "lineOfBusiness", label: "Line of Business" },
     {
       key: "decision", label: "Agreed Decision",
@@ -451,7 +456,6 @@ const CONFIG_LOB_DECISION = {
         return el("td", {}, [el("span", { class: "pill " + className }, [row.decision || "\u2014"])]);
       }
     },
-    { key: "gccOwns", label: "GCC Owns" },
     { key: "powerHouseRetains", label: "Power House Retains" },
     { key: "rationale", label: "Rationale" }
   ]
@@ -539,9 +543,13 @@ const CONFIG_CANDIDATES = {
     {
       key: "wave", label: "MVP Wave",
       render: (row) => {
-        const wave = computeCandidate(row, state.assumptions).wave;
-        const className = { "MVP Wave 1": "pill-green", "Wave 2 / Hybrid": "pill-amber", "Retain / Improve First": "pill-red" }[wave] || "pill-grey";
-        return el("td", {}, [el("span", { class: "pill " + className }, [wave])]);
+        const computed = computeCandidate(row, state.assumptions);
+        const className = { "MVP Wave 1": "pill-green", "Wave 2 / Hybrid": "pill-amber", "Retain / Improve First": "pill-red" }[computed.wave] || "pill-grey";
+        const cell = el("td", {}, [el("span", { class: "pill " + className }, [computed.wave])]);
+        if (computed.decisionVariance) {
+          cell.appendChild(el("div", { style: "font-size:11px;color:#64708a;margin-top:4px" }, ["model: " + computed.modelWave]));
+        }
+        return cell;
       }
     }
   ]
@@ -551,11 +559,10 @@ const CONFIG_ORG_STRUCTURE = {
   key: "organizationStructure",
   title: "3. Organisation Structure",
   singular: "Structure Entry",
-  description: "Capture region, lines of business, team size, revenue, and operating cost for every category. This gives the value model a business-economic context before placement decisions are made.",
+  description: "Capture region, line of business, team size, revenue, and operating cost. Team size is the workshop FTE baseline for that line of business, and contribution is calculated as revenue minus operating cost. This gives the value model a business-economic context before placement decisions are made.",
   columns: [
     { key: "region", label: "Region", type: "text" },
     { key: "lineOfBusiness", label: "Lines of Business", type: "text" },
-    { key: "category", label: "Category", type: "text" },
     { key: "teamSizeFTE", label: "Team Size (FTE)", type: "number" },
     { key: "revenueUSD", label: "Revenue (USD)", type: "number" },
     { key: "operatingCostUSD", label: "Operating Cost (USD)", type: "number" },
@@ -564,7 +571,6 @@ const CONFIG_ORG_STRUCTURE = {
   displayColumns: [
     { key: "region", label: "Region" },
     { key: "lineOfBusiness", label: "Lines of Business" },
-    { key: "category", label: "Category" },
     { key: "teamSizeFTE", label: "Team Size", render: (row) => el("td", { style: "text-align:center" }, [String(num(row.teamSizeFTE))]) },
     { key: "revenueUSD", label: "Revenue", render: (row) => el("td", {}, [fmtUSD(row.revenueUSD)]) },
     { key: "operatingCostUSD", label: "Operating Cost", render: (row) => el("td", {}, [fmtUSD(row.operatingCostUSD)]) },
@@ -800,7 +806,7 @@ function renderOrganisationStructure(container) {
     el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtUSD(totals.revenue)]), el("div", { class: "stat-label" }, ["Total Revenue"])]),
     el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtUSD(totals.cost)]), el("div", { class: "stat-label" }, ["Total Operating Cost"])]),
     el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [fmtUSD(totals.revenue - totals.cost)]), el("div", { class: "stat-label" }, ["Contribution"])]),
-    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(new Set(rows.map((row) => row.category).filter(Boolean)).size)]), el("div", { class: "stat-label" }, ["Categories"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(new Set(rows.map((row) => row.lineOfBusiness).filter(Boolean)).size)]), el("div", { class: "stat-label" }, ["Lines of Business"])]),
     el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(new Set(rows.map((row) => row.region).filter(Boolean)).size)]), el("div", { class: "stat-label" }, ["Regions"])] )
   ]));
   renderRegister(container, CONFIG_ORG_STRUCTURE);
@@ -837,19 +843,35 @@ function renderPlacement(container) {
     return;
   }
 
-  const counts = {
-    move: placements.filter((row) => row.recommendation === PLACEMENT_MOVE).length,
-    hybrid: placements.filter((row) => row.recommendation === PLACEMENT_HYBRID).length,
-    remain: placements.filter((row) => row.recommendation === PLACEMENT_REMAIN).length
-  };
-  const disagreements = placements.filter((row) => row.agreedDecision && row.agreedDecision !== row.recommendation);
+  const agreed = agreedPlacementSummary(state);
 
   container.appendChild(el("div", { class: "card-grid" }, [
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.total)]), el("div", { class: "stat-label" }, ["Capabilities assessed"])]),
+    el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [String(agreed.move)]), el("div", { class: "stat-label" }, ["Agreed to move to GCC"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.hybrid)]), el("div", { class: "stat-label" }, ["Agreed hybrid / shared"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.remain)]), el("div", { class: "stat-label" }, ["Agreed remain at power house"])]),
     el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(placements.length)]), el("div", { class: "stat-label" }, ["Lines of business assessed"])]),
-    el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [String(counts.move)]), el("div", { class: "stat-label" }, ["Recommended to move to GCC"])]),
-    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(counts.hybrid)]), el("div", { class: "stat-label" }, ["Hybrid / shared"])]),
-    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(counts.remain)]), el("div", { class: "stat-label" }, ["Remain at power house"])])
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(agreed.variance)]), el("div", { class: "stat-label" }, ["Differ from model recommendation"])])
   ]));
+
+  if (agreed.notAgreed) {
+    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
+      el("h4", {}, ["Capabilities with no agreed decision"]),
+      el("p", {}, [agreed.notAgreed + " of " + agreed.total + " capabilities have no recorded decision, so they fall back to the model recommendation. Import or record a decision for each one before the case is presented."])
+    ]));
+  }
+
+  if (agreed.variance) {
+    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#f9a825" }, [
+      el("h4", {}, ["Why the model recommendation and the agreed decision differ"]),
+      el("p", {}, [
+        agreed.variance + " of " + agreed.total + " capabilities differ. The model recommendation is derived only from the five workshop readiness scores: standardization, remote transferability, automation potential, data readiness, and local constraint. " +
+        "The agreed decision additionally weighs business value, strategic importance, and technology sharedness, which are not part of the readiness score. " +
+        "A capability can therefore score well on readiness and still be kept at the power house because it is not strategically worth moving first, or score moderately and still be moved because it unlocks a shared platform. " +
+        "The agreed decision governs the MVP scope and the value model; the model recommendation is retained as the challenge view."
+      ])
+    ]));
+  }
 
   const shareCard = el("div", { class: "chart-card" }, [el("h4", {}, ["Share of effort that can move to the GCC, by line of business"])]);
   container.appendChild(shareCard);
@@ -862,9 +884,10 @@ function renderPlacement(container) {
     }
   ], { height: 400, yFormat: (value) => Math.round(value) + "%", xLabelFontSize: "10px", xLabelRotation: -28 });
 
+  const disagreements = placements.filter((row) => row.agreedDecision && row.agreedDecision !== row.recommendation);
   if (disagreements.length) {
     container.appendChild(el("div", { class: "story-block", style: "border-left-color:#f9a825" }, [
-      el("h4", {}, ["Decisions that differ from the model"]),
+      el("h4", {}, ["Lines of business where the agreed position differs from the model"]),
       el("p", {}, [disagreements.map((row) =>
         row.lineOfBusiness + " (model says " + row.recommendation + ", leadership agreed " + row.agreedDecision + ")"
       ).join("; ") + ". This is legitimate, but the rationale must be recorded so the decision survives later challenge."])
@@ -873,7 +896,7 @@ function renderPlacement(container) {
 
   const table = el("table", { class: "data-table" });
   table.appendChild(el("thead", {}, [el("tr", {},
-    ["Line of Business", "Total FTE", "Transferable FTE", "GCC Share", "Annual Value", "Moves to GCC", "Stays at Power House", "Model Recommendation", "Agreed Decision"].map((heading) => el("th", {}, [heading]))
+    ["Line of Business", "Capabilities", "Total FTE", "Transferable FTE", "GCC Share", "Annual Value", "Agreed: Move", "Agreed: Remain", "Model Recommendation", "Agreed Decision"].map((heading) => el("th", {}, [heading]))
   )]));
   const tbody = el("tbody", {});
   placements.forEach((row) => {
@@ -881,12 +904,13 @@ function renderPlacement(container) {
     const agreedClass = { "Move to GCC": "pill-green", "Hybrid / Shared": "pill-amber", "Remain at Power House": "pill-red" }[row.agreedDecision] || "pill-grey";
     tbody.appendChild(el("tr", {}, [
       el("td", { style: "font-weight:600" }, [row.lineOfBusiness]),
+      el("td", { style: "text-align:center" }, [String(row.capabilityCount)]),
       el("td", { style: "text-align:center" }, [String(Math.round(row.totalFTE))]),
       el("td", { style: "text-align:center" }, [row.transferableFTE.toFixed(1)]),
       el("td", { style: "background:" + heatColor(row.gccSharePercent / 100) + ";color:#fff;text-align:center;font-weight:700;" }, [fmtPct(row.gccSharePercent)]),
       el("td", { style: "font-weight:600" }, [fmtUSD(row.annualValue)]),
-      el("td", { style: "font-size:12px" }, [row.moving.length ? row.moving.join("; ") : "\u2014"]),
-      el("td", { style: "font-size:12px" }, [row.staying.length ? row.staying.join("; ") : "\u2014"]),
+      el("td", { style: "text-align:center;font-weight:600;color:#2e7d32" }, [String(row.agreedMove)]),
+      el("td", { style: "text-align:center;font-weight:600;color:#c62828" }, [String(row.agreedRemain)]),
       el("td", {}, [el("span", { class: "pill " + recommendationClass }, [row.recommendation])]),
       el("td", {}, [el("span", { class: "pill " + agreedClass }, [row.agreedDecision || "not agreed"])])
     ]));
@@ -899,10 +923,14 @@ function renderPlacement(container) {
       class: "btn",
       onclick: () => exportArrayAsCSV("gcc-vs-power-house-placement.csv", placements.map((row) => ({
         lineOfBusiness: row.lineOfBusiness,
+        capabilityCount: row.capabilityCount,
         totalFTE: Math.round(row.totalFTE),
         transferableFTE: row.transferableFTE.toFixed(1),
         gccSharePercent: row.gccSharePercent.toFixed(1),
+        modelSharePercent: row.modelSharePercent.toFixed(1),
         annualValue: Math.round(row.annualValue),
+        agreedMove: row.agreedMove,
+        agreedRemain: row.agreedRemain,
         moving: row.moving.join("; "),
         staying: row.staying.join("; "),
         recommendation: row.recommendation,
@@ -910,9 +938,13 @@ function renderPlacement(container) {
         powerHouseRetains: row.powerHouseRetains,
         rationale: row.rationale
       })), [
-        { key: "lineOfBusiness", label: "Line of Business" }, { key: "totalFTE", label: "Total FTE" },
+        { key: "lineOfBusiness", label: "Line of Business" }, { key: "capabilityCount", label: "Capabilities" },
+        { key: "totalFTE", label: "Total FTE" },
         { key: "transferableFTE", label: "Transferable FTE" }, { key: "gccSharePercent", label: "GCC Share %" },
-        { key: "annualValue", label: "Annual Value (USD)" }, { key: "moving", label: "Moves to GCC" },
+        { key: "modelSharePercent", label: "Model Share %" },
+        { key: "annualValue", label: "Annual Value (USD)" },
+        { key: "agreedMove", label: "Agreed: Move" }, { key: "agreedRemain", label: "Agreed: Remain" },
+        { key: "moving", label: "Moves to GCC" },
         { key: "staying", label: "Stays at Power House" }, { key: "recommendation", label: "Model Recommendation" },
         { key: "agreedDecision", label: "Agreed Decision" }, { key: "powerHouseRetains", label: "Power House Retains" },
         { key: "rationale", label: "Rationale" }
@@ -973,7 +1005,7 @@ function renderValueModel(container) {
   container.appendChild(el("div", { class: "panel-header" }, [
     el("h2", {}, ["10. MVP Value Model"]),
     el("p", { class: "panel-desc" }, [
-      "The MVP is the set of capabilities that scored above the Wave 1 readiness threshold. This view answers the executive question directly: what value can the GCC create, what does it cost, and when does it pay back."
+      "The MVP is the set of capabilities leadership agreed to move to the GCC, priced using the workshop readiness scores. This view answers the executive question directly: what value can the GCC create, what does it cost, and when does it pay back."
     ]),
     el("div", { class: "panel-actions" }, [
       el("button", {
@@ -1053,16 +1085,17 @@ function renderValueModel(container) {
     { name: "MVP annual value", color: "#0f766e", values: [mvp.arbitrageValue, mvp.automationValue, mvp.riskAvoidanceValue, mvp.revenueEnablementValue] }
   ], { yFormat: (value) => "$" + Math.round(value / 1000000) + "M", xLabelFontSize: "11px" });
 
-  const candidateCard = el("div", { class: "chart-card" }, [el("h4", {}, ["Annual value by capability (colour shows readiness)"])]);
+  const candidateCard = el("div", { class: "chart-card" }, [el("h4", {}, ["Annual value by capability \u2014 top 20 (colour shows readiness)"])]);
   container.appendChild(candidateCard);
   const sorted = state.workshopCandidates.slice().sort((left, right) =>
     computeCandidate(right, state.assumptions).annualValue - computeCandidate(left, state.assumptions).annualValue);
-  renderBarChart(candidateCard, sorted.map((row) => row.capability), [
+  const charted = sorted.filter((row) => computeCandidate(row, state.assumptions).annualValue > 0).slice(0, 20);
+  renderBarChart(candidateCard, charted.map((row) => row.capability), [
     {
       name: "Annual value",
       color: "#0f766e",
-      colorFor: (index) => heatColor(computeCandidate(sorted[index], state.assumptions).readinessPercent / 100),
-      values: sorted.map((row) => computeCandidate(row, state.assumptions).annualValue)
+      colorFor: (index) => heatColor(computeCandidate(charted[index], state.assumptions).readinessPercent / 100),
+      values: charted.map((row) => computeCandidate(row, state.assumptions).annualValue)
     }
   ], { height: 440, yFormat: (value) => "$" + Math.round(value / 1000000) + "M", xLabelFontSize: "10px", xLabelRotation: -32 });
 
@@ -1072,7 +1105,7 @@ function renderValueModel(container) {
 
   container.appendChild(el("div", { class: "panel-header" }, [
     el("h3", {}, ["Value detail by capability"]),
-    el("p", { class: "panel-desc" }, ["Full portfolio annual value is " + fmtUSD(portfolio.annualValue) + " against " + fmtUSD(portfolio.investment) + " investment. The MVP deliberately starts with the highest-readiness subset so the enterprise proves value before scaling."])
+    el("p", { class: "panel-desc" }, ["The MVP is the " + mvpRows.length + " capabilities leadership agreed to move. Capabilities retained at the power house claim no value until their constraints are resolved, so the full portfolio total is " + fmtUSD(portfolio.annualValue) + " against " + fmtUSD(portfolio.investment) + " investment. Value is never claimed for work that is not agreed to move."])
   ]));
 
   const table = el("table", { class: "data-table" });
@@ -1187,9 +1220,10 @@ function renderStoryline(container) {
     .sort((left, right) => computeCandidate(right, state.assumptions).annualValue - computeCandidate(left, state.assumptions).annualValue)
     .slice(0, 3);
   const placements = computeLobPlacements(state);
-  const movingLobs = placements.filter((row) => row.recommendation === PLACEMENT_MOVE);
-  const hybridLobs = placements.filter((row) => row.recommendation === PLACEMENT_HYBRID);
-  const remainingLobs = placements.filter((row) => row.recommendation === PLACEMENT_REMAIN);
+  const agreed = agreedPlacementSummary(state);
+  const movingLobs = placements.filter((row) => row.agreedDecision === PLACEMENT_MOVE);
+  const hybridLobs = placements.filter((row) => row.agreedDecision === PLACEMENT_HYBRID);
+  const remainingLobs = placements.filter((row) => row.agreedDecision === PLACEMENT_REMAIN);
 
   const blocks = [
     {
@@ -1220,18 +1254,25 @@ function renderStoryline(container) {
     {
       title: "What moves and what stays",
       body: placements.length
-        ? "Recommended to move to the GCC: " + (movingLobs.length ? movingLobs.map((row) => row.lineOfBusiness).join(", ") : "none") +
-          ". Hybrid or shared: " + (hybridLobs.length ? hybridLobs.map((row) => row.lineOfBusiness).join(", ") : "none") +
-          ". Remaining at the power house: " + (remainingLobs.length ? remainingLobs.map((row) => row.lineOfBusiness).join(", ") : "none") +
-          ". The split is derived from the share of each line of business that is genuinely transferable, not from cost alone."
+        ? "Leadership agreed to move " + agreed.move + " of " + agreed.total + " capabilities to the GCC, covering " +
+          Math.round(agreed.movingFTE) + " FTE, while " + agreed.remain + " remain at the power house" +
+          (agreed.hybrid ? " and " + agreed.hybrid + " are shared" : "") + ". " +
+          "Lines of business moving wholly or partly to the GCC: " + (movingLobs.concat(hybridLobs).length ? movingLobs.concat(hybridLobs).map((row) => row.lineOfBusiness).join(", ") : "none") +
+          ". Remaining entirely at the power house: " + (remainingLobs.length ? remainingLobs.map((row) => row.lineOfBusiness).join(", ") : "none") +
+          ". The split is the agreed decision, not the raw readiness score: " + agreed.variance +
+          " capabilities were placed differently from the model recommendation because business value, strategic importance, and technology sharedness were weighed alongside readiness."
         : "No line of business placement has been produced yet."
     },
     {
       title: "What the MVP includes",
       body: mvpRows.length
-        ? "The MVP covers " + mvpRows.length + " capabilities: " + mvpRows.map((row) => row.capability).join("; ") +
-          ". These scored highest on standardization, remote transferability, automation potential, and data readiness, with the lowest local constraints."
-        : "No capability currently meets the Wave 1 readiness threshold, so the first priority is standardization and data readiness rather than transfer."
+        ? "The MVP covers the " + mvpRows.length + " capabilities leadership agreed to move, across " +
+          new Set(mvpRows.map((row) => row.lineOfBusiness)).size + " lines of business. The largest blocks are " +
+          Object.entries(mvpRows.reduce((acc, row) => { acc[row.lineOfBusiness] = (acc[row.lineOfBusiness] || 0) + 1; return acc; }, {}))
+            .sort((left, right) => right[1] - left[1]).slice(0, 4)
+            .map((entry) => entry[0] + " (" + entry[1] + ")").join(", ") +
+          ". Scope was set by the agreed decision and then priced using the workshop readiness scores."
+        : "No capability has an agreed move decision, so there is no MVP scope to price yet."
     },
     {
       title: "The value the GCC can create",
@@ -1240,7 +1281,8 @@ function renderStoryline(container) {
         " is parallel running while both teams are paid for the same work. That produces " + fmtUSD(mvp.netValue) +
         " of net value over three years, a " + fmtPct(mvp.roiPercent) + " three-year ROI and payback in " +
         (mvp.paybackYear ? "year " + mvp.paybackYear : "beyond year three") +
-        ". The full candidate portfolio would extend this to " + fmtUSD(portfolio.annualValue) + " annually once scaled."
+        ". Capabilities retained at the power house claim no value in this case, so the portfolio total stays at " +
+        fmtUSD(portfolio.annualValue) + " until those constraints are resolved and they are reassessed."
     },
     {
       title: "Where the value comes from",
@@ -1252,10 +1294,12 @@ function renderStoryline(container) {
       title: "What we are deliberately not moving",
       body: (function () {
         const retained = state.workshopCandidates.filter((row) => computeCandidate(row, state.assumptions).wave === "Retain / Improve First");
-        return retained.length
-          ? retained.map((row) => row.capability).join("; ") +
-            " stay with the business because of physical presence, regulatory accountability, or low process standardization. This protects credibility of the case."
-          : "Every scored capability has a transfer or hybrid path; none were assessed as requiring full retention.";
+        if (!retained.length) return "Every scored capability has a transfer or hybrid path; none were assessed as requiring full retention.";
+        const byLob = Object.entries(retained.reduce((acc, row) => { acc[row.lineOfBusiness] = (acc[row.lineOfBusiness] || 0) + 1; return acc; }, {}))
+          .sort((left, right) => right[1] - left[1]);
+        return retained.length + " capabilities stay with the business, concentrated in " +
+          byLob.slice(0, 5).map((entry) => entry[0] + " (" + entry[1] + ")").join(", ") +
+          ". They are retained because of physical presence, regulatory accountability, or low process standardization. Holding these back protects the credibility of the case rather than inflating it.";
       })()
     },
     {
