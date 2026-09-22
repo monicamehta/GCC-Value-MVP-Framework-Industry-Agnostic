@@ -23,6 +23,10 @@ function fmtPct(value, digits) {
   return num(value).toFixed(digits === undefined ? 0 : digits) + "%";
 }
 
+function plural(count, singular, pluralForm) {
+  return count + " " + (count === 1 ? singular : (pluralForm || singular + "s"));
+}
+
 function goalOptions(currentState) {
   return [{ value: "", label: "(not linked)" }].concat(
     currentState.strategicGoals.map((goal) => ({ value: goal.id, label: goal.goal }))
@@ -625,11 +629,11 @@ const CONFIG_APPLICATIONS = {
   title: "Application Inventory",
   heading: "h3",
   singular: "Application",
-  description: "Capture application ownership, hosting, integration, data domains, criticality, and run costs.",
+  description: "Capture application ownership, hosting, integration, data domains, criticality, and run costs. Licence and support cost feed the MVP value model: each application is attributed to its line of business and split across that line's capabilities by FTE, so the primary domain must match a line of business to be counted.",
   columns: [
     { key: "name", label: "Application Name", type: "text" },
     { key: "vendor", label: "Vendor", type: "text" },
-    { key: "domain", label: "Primary Domain", type: "text" },
+    { key: "domain", label: "Primary Domain", type: "select-dynamic", options: lobOptions },
     { key: "hosting", label: "Hosting", type: "select", options: ["On-Premise", "Cloud", "Hybrid"] },
     { key: "integration", label: "Integration Pattern", type: "select", options: ["API", "Batch", "Point-to-point", "File Transfer", "Manual"] },
     { key: "dataDomains", label: "Data Domains Owned", type: "text" },
@@ -738,6 +742,8 @@ function renderAssumptions(container) {
     { key: "parallelRunMonths", label: "Default parallel run (months)", hint: "Months both teams are paid for the same work. Override per capability in Tab 5; set to 0 to exclude." },
     { key: "maxTransferSharePercent", label: "Maximum transfer share (%)", hint: "Caps how much of a capability can ever move, even at perfect readiness." },
     { key: "maxAutomationSavingPercent", label: "Maximum automation saving (%)", hint: "Saving applied at automation potential 5 of 5." },
+    { key: "appSupportSavingPercent", label: "Application support saving (%)", hint: "Share of the allocated application support and AMS cost saved when a capability transfers, because the GCC runs it at lower cost." },
+    { key: "appLicenseSavingPercent", label: "Application licence saving (%)", hint: "Share of the allocated licence cost saved through rationalisation. Defaults to 0 because licences are usually still paid to the vendor after a transfer." },
     { key: "wave1ThresholdPercent", label: "MVP Wave 1 readiness threshold (%)", hint: "At or above this readiness the model places a capability in the MVP. Changing it updates Tab 5, Tab 6, and the value model." },
     { key: "wave2ThresholdPercent", label: "Wave 2 readiness threshold (%)", hint: "Below this the model keeps the capability at the power house until foundations are fixed." },
     { key: "rampYear1Percent", label: "Year 1 value realisation (%)", hint: "Share of steady-state value realised in year one." },
@@ -769,6 +775,8 @@ function renderAssumptions(container) {
     ["Transferable FTE", "Current FTE x min(readiness %, maximum transfer share %)."],
     ["Labour arbitrage", "Transferable FTE x (onshore cost per FTE - GCC cost per FTE)."],
     ["Automation value", "Transferable FTE x GCC cost per FTE x (automation potential / 5 x maximum automation saving %)."],
+    ["Application cost allocation", "Each application's licence and support cost is attributed to its line of business, then split across that line's capabilities in proportion to FTE."],
+    ["Application saving", "Allocated support cost x transfer share % x application support saving %, plus the same calculation on licence cost at the licence saving %."],
     ["Risk avoidance & revenue enablement", "Entered directly per candidate; not derived, so each figure needs a named owner."],
     ["Parallel run cost", "Transferable FTE x GCC cost per FTE x (parallel run months / 12). This is the period both teams are paid for the same work."],
     ["Investment", "Setup cost + one-time transition cost + parallel run cost."],
@@ -848,8 +856,32 @@ function renderCapabilityLandscape(container) {
 function renderArchitecture(container) {
   container.appendChild(el("div", { class: "panel-header" }, [
     el("h2", {}, ["8. Application & Information Architecture"]),
-    el("p", { class: "panel-desc" }, ["Use the application inventory and data-flow map together to show which systems support each capability and where information is mastered, integrated, duplicated, or moved manually."])
+    el("p", { class: "panel-desc" }, ["Use the application inventory and data-flow map together to show which systems support each capability and where information is mastered, integrated, duplicated, or moved manually. Application run costs are allocated to capabilities and feed the MVP value model."])
   ]));
+
+  const totals = state.applications.reduce((accumulator, application) => {
+    accumulator.license += num(application.licenseCostUSD);
+    accumulator.support += num(application.supportCostUSD);
+    return accumulator;
+  }, { license: 0, support: 0 });
+  const unallocated = unallocatedApplicationCost(state);
+  const mvp = buildThreeYearCase(mvpCandidates(state), state.assumptions);
+
+  container.appendChild(el("div", { class: "card-grid" }, [
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [String(state.applications.length)]), el("div", { class: "stat-label" }, ["Applications"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtUSD(totals.license)]), el("div", { class: "stat-label" }, ["Annual licence cost"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtUSD(totals.support)]), el("div", { class: "stat-label" }, ["Annual support / AMS cost"])]),
+    el("div", { class: "stat-card" }, [el("div", { class: "stat-value" }, [fmtUSD(mvp.allocatedSupportUSD + mvp.allocatedLicenseUSD)]), el("div", { class: "stat-label" }, ["Allocated to MVP capabilities"])]),
+    el("div", { class: "stat-card highlight" }, [el("div", { class: "stat-value" }, [fmtUSD(mvp.applicationValue)]), el("div", { class: "stat-label" }, ["Application saving in MVP value"])])
+  ]));
+
+  if (unallocated > 0) {
+    container.appendChild(el("div", { class: "story-block", style: "border-left-color:#c62828" }, [
+      el("h4", {}, ["Application cost that reaches no capability"]),
+      el("p", {}, [fmtUSD(unallocated) + " of annual application cost sits in a primary domain with no scored capability, so it cannot be allocated and is excluded from the value model. Set the primary domain to a line of business that appears in Tab 5."])
+    ]));
+  }
+
   const appWrap = el("div", {});
   const flowWrap = el("div", { style: "margin-top:28px" });
   container.appendChild(appWrap);
@@ -1102,8 +1134,8 @@ function renderValueModel(container) {
 
   const leverCard = el("div", { class: "chart-card" }, [el("h4", {}, ["Where the MVP value comes from"])]);
   container.appendChild(leverCard);
-  renderBarChart(leverCard, ["Labour arbitrage", "Automation & AI", "Risk avoidance", "Revenue enablement"], [
-    { name: "MVP annual value", color: "#0f766e", values: [mvp.arbitrageValue, mvp.automationValue, mvp.riskAvoidanceValue, mvp.revenueEnablementValue] }
+  renderBarChart(leverCard, ["Labour arbitrage", "Automation & AI", "Application savings", "Risk avoidance", "Revenue enablement"], [
+    { name: "MVP annual value", color: "#0f766e", values: [mvp.arbitrageValue, mvp.automationValue, mvp.applicationValue, mvp.riskAvoidanceValue, mvp.revenueEnablementValue] }
   ], { yFormat: (value) => "$" + Math.round(value / 1000000) + "M", xLabelFontSize: "11px" });
 
   const candidateCard = el("div", { class: "chart-card" }, [el("h4", {}, ["Annual value by capability \u2014 top 20 (colour shows readiness)"])]);
@@ -1131,12 +1163,12 @@ function renderValueModel(container) {
 
   const table = el("table", { class: "data-table" });
   table.appendChild(el("thead", {}, [el("tr", {},
-    ["Capability", "Linked Goal", "Arbitrage", "Automation", "Risk Avoidance", "Revenue", "Annual Value", "Investment", "Wave", "Actions"].map((heading) => el("th", {}, [heading]))
+    ["Capability", "Linked Goal", "Arbitrage", "Automation", "Application", "Risk Avoidance", "Revenue", "Annual Value", "Investment", "Wave", "Actions"].map((heading) => el("th", {}, [heading]))
   )]));
   const tbody = el("tbody", {});
   sorted.forEach((row) => {
     if (uiState.editing.workshopCandidates === row.id) {
-      tbody.appendChild(el("tr", {}, [el("td", { colspan: "10" }, [buildForm(CONFIG_CANDIDATES, row)])]));
+      tbody.appendChild(el("tr", {}, [el("td", { colspan: "11" }, [buildForm(CONFIG_CANDIDATES, row)])]));
       return;
     }
     const computed = computeCandidate(row, state.assumptions);
@@ -1146,6 +1178,7 @@ function renderValueModel(container) {
       el("td", { style: "font-size:12px;color:#64708a" }, [goalLabel(row.linkedGoal) || "(not linked)"]),
       el("td", {}, [fmtUSD(computed.arbitrageValue)]),
       el("td", {}, [fmtUSD(computed.automationValue)]),
+      el("td", {}, [fmtUSD(computed.applicationValue)]),
       el("td", {}, [fmtUSD(computed.riskAvoidanceValue)]),
       el("td", {}, [fmtUSD(computed.revenueEnablementValue)]),
       el("td", { style: "font-weight:700" }, [fmtUSD(computed.annualValue)]),
@@ -1275,25 +1308,27 @@ function renderStoryline(container) {
     {
       title: "What moves and what stays",
       body: placements.length
-        ? "Leadership agreed to move " + agreed.move + " of " + agreed.total + " capabilities to the GCC, covering " +
-          Math.round(agreed.movingFTE) + " FTE, while " + agreed.remain + " remain at the power house" +
-          (agreed.hybrid ? " and " + agreed.hybrid + " are shared" : "") + ". " +
+        ? "Of " + agreed.total + " capabilities scored, " + agreed.move + " move to the GCC covering " +
+          Math.round(agreed.movingFTE) + " FTE, " + agreed.remain + " remain at the power house" +
+          (agreed.hybrid ? ", and " + agreed.hybrid + " are shared" : "") + ". " +
           "Lines of business moving wholly or partly to the GCC: " + (movingLobs.concat(hybridLobs).length ? movingLobs.concat(hybridLobs).map((row) => row.lineOfBusiness).join(", ") : "none") +
-          ". Remaining entirely at the power house: " + (remainingLobs.length ? remainingLobs.map((row) => row.lineOfBusiness).join(", ") : "none") +
-          ". The split is the agreed decision, not the raw readiness score: " + agreed.variance +
-          " capabilities were placed differently from the model recommendation because business value, strategic importance, and technology sharedness were weighed alongside readiness."
+          ". Remaining entirely at the power house: " + (remainingLobs.length ? remainingLobs.map((row) => row.lineOfBusiness).join(", ") : "none") + ". " +
+          (agreed.overrides
+            ? "This is the model result adjusted by " + plural(agreed.overrides, "leadership decision") + ", " + agreed.variance +
+              " of which changed the wave because business value, strategic importance, and technology sharedness were weighed alongside readiness."
+            : "This is the model result in full, derived from the workshop readiness scores against the agreed thresholds. No leadership override has been applied.")
         : "No line of business placement has been produced yet."
     },
     {
       title: "What the MVP includes",
       body: mvpRows.length
-        ? "The MVP covers the " + mvpRows.length + " capabilities leadership agreed to move, across " +
+        ? "The MVP covers " + mvpRows.length + " capabilities across " +
           new Set(mvpRows.map((row) => row.lineOfBusiness)).size + " lines of business. The largest blocks are " +
           Object.entries(mvpRows.reduce((acc, row) => { acc[row.lineOfBusiness] = (acc[row.lineOfBusiness] || 0) + 1; return acc; }, {}))
             .sort((left, right) => right[1] - left[1]).slice(0, 4)
             .map((entry) => entry[0] + " (" + entry[1] + ")").join(", ") +
-          ". Scope was set by the agreed decision and then priced using the workshop readiness scores."
-        : "No capability has an agreed move decision, so there is no MVP scope to price yet."
+          ". Scope is set by readiness against the Wave 1 threshold" + (agreed.overrides ? ", adjusted by the recorded leadership decisions" : "") + ", then priced using the workshop scores."
+        : "No capability reaches the Wave 1 threshold, so there is no MVP scope to price yet."
     },
     {
       title: "The value the GCC can create",
@@ -1308,6 +1343,7 @@ function renderStoryline(container) {
     {
       title: "Where the value comes from",
       body: "Labour arbitrage contributes " + fmtUSD(mvp.arbitrageValue) + ", automation and AI " + fmtUSD(mvp.automationValue) +
+        ", application run cost " + fmtUSD(mvp.applicationValue) +
         ", risk avoidance " + fmtUSD(mvp.riskAvoidanceValue) + ", and revenue enablement " + fmtUSD(mvp.revenueEnablementValue) +
         ". The largest single contributors are " + topCapabilities.map((row) => row.capability).join(", ") + "."
     },
@@ -1318,7 +1354,7 @@ function renderStoryline(container) {
         if (!retained.length) return "Every scored capability has a transfer or hybrid path; none were assessed as requiring full retention.";
         const byLob = Object.entries(retained.reduce((acc, row) => { acc[row.lineOfBusiness] = (acc[row.lineOfBusiness] || 0) + 1; return acc; }, {}))
           .sort((left, right) => right[1] - left[1]);
-        return retained.length + " capabilities stay with the business, concentrated in " +
+        return plural(retained.length, "capability", "capabilities") + " stay with the business, concentrated in " +
           byLob.slice(0, 5).map((entry) => entry[0] + " (" + entry[1] + ")").join(", ") +
           ". They are retained because of physical presence, regulatory accountability, or low process standardization. Holding these back protects the credibility of the case rather than inflating it.";
       })()

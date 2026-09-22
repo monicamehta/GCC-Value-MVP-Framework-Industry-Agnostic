@@ -34,6 +34,8 @@ function defaultAssumptions() {
     parallelRunMonths: 3,
     maxTransferSharePercent: 80,
     maxAutomationSavingPercent: 30,
+    appSupportSavingPercent: 30,
+    appLicenseSavingPercent: 0,
     wave1ThresholdPercent: 65,
     wave2ThresholdPercent: 45,
     rampYear1Percent: 40,
@@ -162,8 +164,47 @@ function syncAgreedDecisions(state) {
   return state;
 }
 
+/* Application run costs are held per application, so they are allocated down to the
+   capabilities that consume them: an application is attributed to its line of business,
+   then spread across that line's capabilities in proportion to FTE. */
+function syncApplicationCosts(state) {
+  const fteByLob = {};
+  (state.workshopCandidates || []).forEach((candidate) => {
+    const lob = candidate.lineOfBusiness || "Unassigned";
+    fteByLob[lob] = (fteByLob[lob] || 0) + num(candidate.currentFTE);
+  });
+
+  const licenseByLob = {};
+  const supportByLob = {};
+  (state.applications || []).forEach((application) => {
+    const lob = application.domain || "Unassigned";
+    licenseByLob[lob] = (licenseByLob[lob] || 0) + num(application.licenseCostUSD);
+    supportByLob[lob] = (supportByLob[lob] || 0) + num(application.supportCostUSD);
+  });
+
+  (state.workshopCandidates || []).forEach((candidate) => {
+    const lob = candidate.lineOfBusiness || "Unassigned";
+    const lobFTE = fteByLob[lob] || 0;
+    const share = lobFTE > 0 ? num(candidate.currentFTE) / lobFTE : 0;
+    candidate.allocatedLicenseUSD = (licenseByLob[lob] || 0) * share;
+    candidate.allocatedSupportUSD = (supportByLob[lob] || 0) * share;
+  });
+  return state;
+}
+
+/* Application cost that cannot reach a capability, because no scored capability sits in
+   that line of business. Reported rather than silently dropped from the case. */
+function unallocatedApplicationCost(state) {
+  const lobsWithCandidates = new Set((state.workshopCandidates || []).map((row) => row.lineOfBusiness || "Unassigned"));
+  return (state.applications || []).reduce((total, application) => {
+    if (lobsWithCandidates.has(application.domain || "Unassigned")) return total;
+    return total + num(application.licenseCostUSD) + num(application.supportCostUSD);
+  }, 0);
+}
+
 // Everything downstream of the workshop scores is rebuilt here.
 function refreshDerivedState(state) {
+  syncApplicationCosts(state);
   syncPlacementRegister(state);
   return syncAgreedDecisions(state);
 }
@@ -186,10 +227,18 @@ function computeCandidate(candidate, assumptions) {
   const arbitrageValue = transferredFTE * Math.max(0, onshoreCost - gccCost);
   const automationSavingPercent = (Math.min(5, Math.max(0, num(candidate.automationPotential))) / 5) * assumptions.maxAutomationSavingPercent;
   const automationValue = transferredFTE * gccCost * (automationSavingPercent / 100);
+
+  // Only the transferred share of a capability's application run cost can be saved.
+  const applicationLicenseValue = isRetained ? 0
+    : num(candidate.allocatedLicenseUSD) * (transferSharePercent / 100) * (assumptions.appLicenseSavingPercent / 100);
+  const applicationSupportValue = isRetained ? 0
+    : num(candidate.allocatedSupportUSD) * (transferSharePercent / 100) * (assumptions.appSupportSavingPercent / 100);
+  const applicationValue = applicationLicenseValue + applicationSupportValue;
+
   const riskAvoidanceValue = isRetained ? 0 : num(candidate.riskAvoidanceUSD);
   const revenueEnablementValue = isRetained ? 0 : num(candidate.revenueEnablementUSD);
 
-  const annualValue = arbitrageValue + automationValue + riskAvoidanceValue + revenueEnablementValue;
+  const annualValue = arbitrageValue + automationValue + applicationValue + riskAvoidanceValue + revenueEnablementValue;
 
   // During parallel run both teams are paid for the same work, so the GCC cost is incremental.
   const parallelRunMonths = optionalNumber(candidate.parallelRunMonths, assumptions.parallelRunMonths);
@@ -205,6 +254,11 @@ function computeCandidate(candidate, assumptions) {
     arbitrageValue,
     automationValue,
     automationSavingPercent,
+    allocatedLicenseUSD: num(candidate.allocatedLicenseUSD),
+    allocatedSupportUSD: num(candidate.allocatedSupportUSD),
+    applicationLicenseValue,
+    applicationSupportValue,
+    applicationValue,
     riskAvoidanceValue,
     revenueEnablementValue,
     annualValue,
@@ -232,12 +286,16 @@ function buildThreeYearCase(candidates, assumptions) {
     accumulator.transferredFTE += computed.transferredFTE;
     accumulator.arbitrageValue += computed.arbitrageValue;
     accumulator.automationValue += computed.automationValue;
+    accumulator.applicationValue += computed.applicationValue;
+    accumulator.allocatedLicenseUSD += computed.allocatedLicenseUSD;
+    accumulator.allocatedSupportUSD += computed.allocatedSupportUSD;
     accumulator.riskAvoidanceValue += computed.riskAvoidanceValue;
     accumulator.revenueEnablementValue += computed.revenueEnablementValue;
     return accumulator;
   }, {
     annualValue: 0, investment: 0, setupCost: 0, parallelRunCost: 0, oneTimeCost: 0, transferredFTE: 0,
-    arbitrageValue: 0, automationValue: 0, riskAvoidanceValue: 0, revenueEnablementValue: 0
+    arbitrageValue: 0, automationValue: 0, applicationValue: 0, allocatedLicenseUSD: 0, allocatedSupportUSD: 0,
+    riskAvoidanceValue: 0, revenueEnablementValue: 0
   });
 
   const rampPercents = [assumptions.rampYear1Percent, assumptions.rampYear2Percent, assumptions.rampYear3Percent];

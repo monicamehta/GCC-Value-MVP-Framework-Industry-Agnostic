@@ -3028,7 +3028,7 @@ const SEED_APPLICATIONS = [
     "id": "app_001",
     "name": "ERP Core (SAP S/4HANA)",
     "vendor": "SAP",
-    "domain": "Finance & Supply Chain",
+    "domain": "Finance",
     "hosting": "Hybrid",
     "integration": "API",
     "dataDomains": "Ledger, Materials, Vendors, Purchase Orders",
