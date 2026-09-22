@@ -921,8 +921,14 @@ function renderPlacement(container) {
       "Every placement starts from the workshop scores in Tab 5: readiness is scored, compared against the thresholds in Tab 9, and turned into a recommendation. " +
       "On the current assumptions the model recommends " + agreed.modelMove + " to move, " + agreed.modelHybrid + " hybrid, and " + agreed.modelRemain + " to remain. " +
       (agreed.overrides
-        ? "Leadership has overridden " + agreed.overrides + " of " + agreed.total + " capabilities, of which " + agreed.variance + " changed the wave. Overrides are never recalculated; delete one to return that capability to the model."
+        ? "Leadership has overridden " + plural(agreed.overrides, "capability", "capabilities") + " of " + agreed.total + ", of which " + agreed.variance + " changed the wave. Overrides are never recalculated; delete one to return that capability to the model."
         : "No leadership overrides are recorded, so the model result stands in full. Edit any row in the register below to record an override.")
+    ]),
+    el("p", {}, [
+      "Move, Hybrid, and Remain always add up to the capability count for that line of business. " +
+      "Move to GCC means readiness is at or above the Wave 1 threshold and the capability enters the MVP. " +
+      "Hybrid / Shared means readiness sits between the Wave 2 and Wave 1 thresholds: part of the work can transfer, but local judgement, regulatory sign-off, or unfinished data foundations mean the GCC and the power house run it together rather than the GCC owning it outright. " +
+      "Remain at Power House means readiness is below the Wave 2 threshold, so nothing transfers and no value is claimed until the constraint is fixed."
     ])
   ]));
 
@@ -949,7 +955,7 @@ function renderPlacement(container) {
 
   const table = el("table", { class: "data-table" });
   table.appendChild(el("thead", {}, [el("tr", {},
-    ["Line of Business", "Capabilities", "Total FTE", "Transferable FTE", "GCC Share", "Annual Value", "Move", "Remain", "Overrides", "Model Recommendation", "Net Position"].map((heading) => el("th", {}, [heading]))
+    ["Line of Business", "Capabilities", "Total FTE", "Transferable FTE", "GCC Share", "Annual Value", "Move", "Hybrid", "Remain", "Overrides", "Model Recommendation", "Net Position"].map((heading) => el("th", {}, [heading]))
   )]));
   const tbody = el("tbody", {});
   placements.forEach((row) => {
@@ -963,6 +969,7 @@ function renderPlacement(container) {
       el("td", { style: "background:" + heatColor(row.gccSharePercent / 100) + ";color:#fff;text-align:center;font-weight:700;" }, [fmtPct(row.gccSharePercent)]),
       el("td", { style: "font-weight:600" }, [fmtUSD(row.annualValue)]),
       el("td", { style: "text-align:center;font-weight:600;color:#2e7d32" }, [String(row.agreedMove)]),
+      el("td", { style: "text-align:center;font-weight:600;color:#a06b00" }, [String(row.agreedHybrid)]),
       el("td", { style: "text-align:center;font-weight:600;color:#c62828" }, [String(row.agreedRemain)]),
       el("td", { style: "text-align:center" }, [String(row.overrides)]),
       el("td", {}, [el("span", { class: "pill " + recommendationClass }, [row.recommendation])]),
@@ -984,6 +991,7 @@ function renderPlacement(container) {
         modelSharePercent: row.modelSharePercent.toFixed(1),
         annualValue: Math.round(row.annualValue),
         agreedMove: row.agreedMove,
+        agreedHybrid: row.agreedHybrid,
         agreedRemain: row.agreedRemain,
         overrides: row.overrides,
         moving: row.moving.join("; "),
@@ -996,7 +1004,7 @@ function renderPlacement(container) {
         { key: "transferableFTE", label: "Transferable FTE" }, { key: "gccSharePercent", label: "GCC Share %" },
         { key: "modelSharePercent", label: "Model Share %" },
         { key: "annualValue", label: "Annual Value (USD)" },
-        { key: "agreedMove", label: "Move" }, { key: "agreedRemain", label: "Remain" },
+        { key: "agreedMove", label: "Move" }, { key: "agreedHybrid", label: "Hybrid" }, { key: "agreedRemain", label: "Remain" },
         { key: "overrides", label: "Leadership Overrides" },
         { key: "moving", label: "Moves to GCC" },
         { key: "staying", label: "Stays at Power House" }, { key: "recommendation", label: "Model Recommendation" },
