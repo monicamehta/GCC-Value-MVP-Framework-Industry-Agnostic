@@ -35,6 +35,7 @@ function defaultAssumptions() {
     maxTransferSharePercent: 80,
     maxAutomationSavingPercent: 30,
     appSupportSavingPercent: 30,
+    wave2AutomationRealisationPercent: 50,
     appLicenseSavingPercent: 0,
     wave1ThresholdPercent: 65,
     wave2ThresholdPercent: 45,
@@ -227,7 +228,10 @@ function computeCandidate(candidate, assumptions) {
   const transferredFTE = num(candidate.currentFTE) * (transferSharePercent / 100);
 
   const arbitrageValue = transferredFTE * Math.max(0, onshoreCost - gccCost);
-  const automationSavingPercent = (Math.min(5, Math.max(0, num(candidate.automationPotential))) / 5) * assumptions.maxAutomationSavingPercent;
+  const wave2AutomationFactor = wave === "Wave 2 / Hybrid"
+    ? Math.max(0, Math.min(100, num(assumptions.wave2AutomationRealisationPercent))) / 100
+    : 1;
+  const automationSavingPercent = (Math.min(5, Math.max(0, num(candidate.automationPotential))) / 5) * assumptions.maxAutomationSavingPercent * wave2AutomationFactor;
   const automationValue = transferredFTE * gccCost * (automationSavingPercent / 100);
 
   // Only the transferred share of a capability's application run cost can be saved.

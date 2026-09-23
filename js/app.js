@@ -835,6 +835,7 @@ function renderAssumptions(container) {
     { key: "parallelRunMonths", label: "Default parallel run (months)", hint: "Months both teams are paid for the same work. Override per capability in Tab 5; set to 0 to exclude." },
     { key: "maxTransferSharePercent", label: "Maximum transfer share (%)", hint: "Caps how much of a capability can ever move, even at perfect readiness." },
     { key: "maxAutomationSavingPercent", label: "Maximum automation saving (%)", hint: "Saving applied at automation potential 5 of 5." },
+    { key: "wave2AutomationRealisationPercent", label: "Wave 2 automation realisation (%)", hint: "Share of calculated automation value recognised for Wave 2 / Hybrid capabilities while foundations are still being established." },
     { key: "appSupportSavingPercent", label: "Application support saving (%)", hint: "Share of the allocated application support and AMS cost saved when a capability transfers, because the GCC runs it at lower cost." },
     { key: "appLicenseSavingPercent", label: "Application licence saving (%)", hint: "Share of the allocated licence cost saved through rationalisation. Defaults to 0 because licences are usually still paid to the vendor after a transfer." },
     { key: "wave1ThresholdPercent", label: "MVP Wave 1 readiness threshold (%)", hint: "At or above this readiness the model places a capability in the MVP. Changing it updates Tab 5, Tab 6, and the value model." },
@@ -867,7 +868,7 @@ function renderAssumptions(container) {
     ["Readiness %", "Average of standardization, transferability, automation potential, and data readiness, with local constraint inverted, rescaled to 0-100%."],
     ["Transferable FTE", "Current FTE x min(readiness %, maximum transfer share %)."],
     ["Labour arbitrage", "Transferable FTE x (onshore cost per FTE - GCC cost per FTE)."],
-    ["Automation value", "Transferable FTE x GCC cost per FTE x (automation potential / 5 x maximum automation saving %)."],
+    ["Automation value", "Transferable FTE x GCC cost per FTE x (automation potential / 5 x maximum automation saving %), multiplied by the Wave 2 realisation assumption for Wave 2 / Hybrid capabilities."],
     ["Application cost allocation", "Each application's licence and support cost is attributed to its line of business, then split across that line's capabilities in proportion to FTE."],
     ["Application saving", "Allocated support cost x transfer share % x application support saving %, plus the same calculation on licence cost at the licence saving %."],
     ["Risk avoidance & revenue enablement", "Entered directly per candidate; not derived, so each figure needs a named owner."],
@@ -1543,6 +1544,8 @@ function renderStoryline(container) {
   const mvp = buildThreeYearCase(mvpRows, state.assumptions);
   const portfolio = buildThreeYearCase(state.workshopCandidates, state.assumptions);
   const highImpactVoices = state.voiceOfBusiness.filter((row) => row.businessImpact === "High");
+  const mandatedLobs = state.northStarMandates.map((mandate) => mandate.lineOfBusiness);
+  const missingMandates = lineOfBusinessNames(state).filter((name) => mandatedLobs.indexOf(name) === -1);
 
   container.appendChild(el("div", { class: "panel-header" }, [
     el("h2", {}, ["13. Executive Storyline"]),
@@ -1588,7 +1591,10 @@ function renderStoryline(container) {
       body: state.northStarMandates.length
         ? "The GCC is mandated across " + state.northStarMandates.length + " lines of business: " +
           state.northStarMandates.map((mandate) => mandate.lineOfBusiness + " (" + (mandate.gccOwnership || "ownership not set") + ")").join("; ") +
-          ". Each mandate names the outcome owned, the decisions the GCC can take alone, and what the power house keeps."
+          ". Each mandate names the outcome owned, the decisions the GCC can take alone, and what the power house keeps." +
+          (missingMandates.length
+            ? " However, " + missingMandates.length + " lines of business in the workshop have no agreed mandate yet: " + missingMandates.join(", ") + ". Their transfer should be treated as provisional until the North Star and decision rights are agreed."
+            : " All lines of business represented in the workshop have an agreed mandate.")
         : "No North Star mandate has been agreed yet. Without it the GCC will be measured on activity rather than outcomes.",
       source: "Tab 4"
     },
