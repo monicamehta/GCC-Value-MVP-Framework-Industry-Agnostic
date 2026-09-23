@@ -1,7 +1,9 @@
 /* ===================== App / UI Layer ===================== */
 
 let state = loadState();
-const uiState = { editing: {}, showAddForm: {}, showGuide: {} };
+const uiState = { editing: {}, showAddForm: {}, showGuide: {}, valueModelWaveFilter: "MVP Wave 1" };
+const WAVE_ORDER = ["MVP Wave 1", "Wave 2 / Hybrid", "Retain / Improve First"];
+const WAVE_PILL_CLASS = { "MVP Wave 1": "pill-green", "Wave 2 / Hybrid": "pill-amber", "Retain / Improve First": "pill-red" };
 
 function el(tag, attrs, children) {
   const element = document.createElement(tag);
@@ -1373,25 +1375,90 @@ function renderValueModel(container) {
   container.appendChild(paybackCard);
   renderPaybackChart(paybackCard, mvp.years);
 
+  const waveTotals = WAVE_ORDER.map((waveName) => {
+    const rows = state.workshopCandidates.filter((row) => computeCandidate(row, state.assumptions).wave === waveName);
+    return { wave: waveName, rows: rows, summary: buildThreeYearCase(rows, state.assumptions) };
+  });
+
+  container.appendChild(el("div", { class: "panel-header" }, [
+    el("h3", {}, ["What is inside the MVP case, and what is not"]),
+    el("p", { class: "panel-desc" }, ["The headline figures above cover the " + mvpRows.length + " MVP Wave 1 capabilities only. Wave 2 capabilities are priced here so the scale-up is visible, but their value is not in the MVP case. Quote the MVP row, not the portfolio row, unless you say so explicitly."])
+  ]));
+
+  const waveTable = el("table", { class: "data-table" });
+  waveTable.appendChild(el("thead", {}, [el("tr", {},
+    ["Wave", "In MVP case", "Capabilities", "Transferable FTE", "Arbitrage", "Automation", "Annual value"].map((heading) => el("th", {}, [heading]))
+  )]));
+  const waveBody = el("tbody", {});
+  waveTotals.forEach((entry) => {
+    const inMvp = entry.wave === "MVP Wave 1";
+    waveBody.appendChild(el("tr", {}, [
+      el("td", {}, [el("span", { class: "pill " + WAVE_PILL_CLASS[entry.wave] }, [entry.wave])]),
+      el("td", {}, [el("span", { class: "pill " + (inMvp ? "pill-green" : "pill-grey") }, [inMvp ? "Yes" : "No"])]),
+      el("td", { style: "text-align:center" }, [String(entry.rows.length)]),
+      el("td", { style: "text-align:center" }, [entry.summary.transferredFTE.toFixed(0)]),
+      el("td", {}, [fmtUSD(entry.summary.arbitrageValue)]),
+      el("td", {}, [fmtUSD(entry.summary.automationValue)]),
+      el("td", { style: "font-weight:700" }, [fmtUSD(entry.summary.annualValue)])
+    ]));
+  });
+  waveBody.appendChild(el("tr", { style: "font-weight:700;background:#f2f4f8" }, [
+    el("td", {}, ["Full portfolio"]),
+    el("td", {}, ["\u2014"]),
+    el("td", { style: "text-align:center" }, [String(state.workshopCandidates.length)]),
+    el("td", { style: "text-align:center" }, [portfolio.transferredFTE.toFixed(0)]),
+    el("td", {}, [fmtUSD(portfolio.arbitrageValue)]),
+    el("td", {}, [fmtUSD(portfolio.automationValue)]),
+    el("td", {}, [fmtUSD(portfolio.annualValue)])
+  ]));
+  waveTable.appendChild(waveBody);
+  container.appendChild(el("div", { class: "table-wrap" }, [waveTable]));
+
   container.appendChild(el("div", { class: "panel-header" }, [
     el("h3", {}, ["Value detail by capability"]),
-    el("p", { class: "panel-desc" }, ["The MVP is the " + mvpRows.length + " capabilities leadership agreed to move. Capabilities retained at the power house claim no value until their constraints are resolved, so the full portfolio total is " + fmtUSD(portfolio.annualValue) + " against " + fmtUSD(portfolio.investment) + " investment. Value is never claimed for work that is not agreed to move."])
+    el("p", { class: "panel-desc" }, ["Capabilities retained at the power house claim no value until their constraints are resolved. Use the filter to switch between the MVP scope and the full portfolio of " + state.workshopCandidates.length + " capabilities."])
   ]));
+
+  const filterOptions = [{ value: "MVP Wave 1", label: "MVP Wave 1 only (" + mvpRows.length + ")" }]
+    .concat(WAVE_ORDER.slice(1).map((waveName) => ({
+      value: waveName,
+      label: waveName + " only (" + waveTotals.find((entry) => entry.wave === waveName).rows.length + ")"
+    })))
+    .concat([{ value: "all", label: "Full portfolio (" + state.workshopCandidates.length + ")" }]);
+  const filterSelect = el("select", {}, filterOptions.map((option) => {
+    const node = el("option", { value: option.value }, [option.label]);
+    if (uiState.valueModelWaveFilter === option.value) node.selected = true;
+    return node;
+  }));
+  filterSelect.addEventListener("change", () => {
+    uiState.valueModelWaveFilter = filterSelect.value;
+    renderActiveTab();
+  });
+  container.appendChild(el("div", { class: "panel-actions" }, [
+    el("label", { style: "font-size:12px;font-weight:700;color:#64708a;margin-right:8px" }, ["Show"]),
+    filterSelect
+  ]));
+
+  const visibleRows = uiState.valueModelWaveFilter === "all"
+    ? sorted
+    : sorted.filter((row) => computeCandidate(row, state.assumptions).wave === uiState.valueModelWaveFilter);
 
   const table = el("table", { class: "data-table" });
   table.appendChild(el("thead", {}, [el("tr", {},
-    ["Capability", "Linked Goal", "Arbitrage", "Automation", "Application", "Risk Avoidance", "Revenue", "Annual Value", "Investment", "Wave", "Actions"].map((heading) => el("th", {}, [heading]))
+    ["Capability", "In MVP", "Linked Goal", "Arbitrage", "Automation", "Application", "Risk Avoidance", "Revenue", "Annual Value", "Investment", "Wave", "Actions"].map((heading) => el("th", {}, [heading]))
   )]));
   const tbody = el("tbody", {});
-  sorted.forEach((row) => {
+  visibleRows.forEach((row) => {
     if (uiState.editing.workshopCandidates === row.id) {
-      tbody.appendChild(el("tr", {}, [el("td", { colspan: "11" }, [buildForm(CONFIG_CANDIDATES, row)])]));
+      tbody.appendChild(el("tr", {}, [el("td", { colspan: "12" }, [buildForm(CONFIG_CANDIDATES, row)])]));
       return;
     }
     const computed = computeCandidate(row, state.assumptions);
-    const waveClass = { "MVP Wave 1": "pill-green", "Wave 2 / Hybrid": "pill-amber", "Retain / Improve First": "pill-red" }[computed.wave] || "pill-grey";
-    tbody.appendChild(el("tr", {}, [
+    const waveClass = WAVE_PILL_CLASS[computed.wave] || "pill-grey";
+    const inMvp = computed.wave === "MVP Wave 1";
+    tbody.appendChild(el("tr", inMvp ? {} : { style: "background:#fafafa;color:#6b7280" }, [
       el("td", { style: "font-weight:600" }, [row.capability]),
+      el("td", {}, [el("span", { class: "pill " + (inMvp ? "pill-green" : "pill-grey") }, [inMvp ? "Yes" : "No"])]),
       el("td", { style: "font-size:12px;color:#64708a" }, [goalLabel(row.linkedGoal) || "(not linked)"]),
       el("td", {}, [fmtUSD(computed.arbitrageValue)]),
       el("td", {}, [fmtUSD(computed.automationValue)]),
