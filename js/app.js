@@ -210,11 +210,14 @@ function renderGuide(container, key) {
   const guide = FACILITATION_GUIDES[key];
   if (!guide) return;
   const isOpen = !!uiState.showGuide[key];
+  // Captured count is read live from state, so it updates the moment rows are added or imported.
+  const capturedCount = (state[key] || []).length;
   const panel = el("div", { class: "guide-panel" }, [
     el("button", {
       class: "guide-toggle",
       onclick: () => { uiState.showGuide[key] = !isOpen; renderActiveTab(); }
-    }, [(isOpen ? "\u25BE " : "\u25B8 ") + "Workshop Facilitation Guide"])
+    }, [(isOpen ? "\u25BE " : "\u25B8 ") + "Workshop Facilitation Guide"
+      + " \u00b7 " + plural(capturedCount, "entry captured", "entries captured")])
   ]);
   if (isOpen) {
     panel.appendChild(el("div", { class: "guide-body" }, [

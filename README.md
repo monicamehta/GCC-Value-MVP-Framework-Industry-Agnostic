@@ -12,9 +12,23 @@ No build step, no server dependency, no data leaves the browser. State is held i
 
 **Easiest:** open the live link above, then click **Load Sample Data**.
 
-**Locally:** double-click `Open GCC Value MVP.command`. It starts a local server and opens the app at `http://localhost:8000/`. Keep the Terminal window open while using it; press `Ctrl+C` to stop.
+**Locally on macOS:** double-click `Open GCC Value MVP.command`. It starts a local server and opens the app at `http://localhost:8000/`. Keep the Terminal window open while using it; press `Ctrl+C` to stop.
 
-Opening `index.html` directly from Finder will not work — browsers block `file://` pages from loading local scripts. Use the launcher or the live link.
+**Locally on Windows:** double-click `Open GCC Value MVP.bat` (requires Python 3 installed and on PATH — get it from python.org, tick "Add Python to PATH" during install). It starts a local server and opens the app.
+
+**Locally on any OS with Python installed:** run `python3 serve.py` (or `python serve.py` on Windows) from the project folder, then open the URL it prints.
+
+Opening `index.html` directly from Finder/Explorer (double-clicking the file) will not work — browsers block `file://` pages from loading local scripts. Symptoms look like: the page loads and the header buttons are visible, but **Load Sample Data** does nothing, and the **Import CSV/XLSX**, **Export CSV**, and **+ Add** controls never appear inside any tab. This means the JavaScript never ran — use one of the launchers above or the live link instead.
+
+### Troubleshooting: buttons/import/export missing after sharing the files
+
+If someone you shared the project with sees the page but nothing works (no sample data, no Add/Import/Export controls), it is almost always because they opened `index.html` directly instead of running it through a local server. Fix:
+
+1. Confirm they have the whole folder, not just `index.html` — they need `style.css`, the `js/` folder, and one of the launcher files.
+2. Have them run the matching launcher for their OS (`Open GCC Value MVP.command` on macOS, `Open GCC Value MVP.bat` on Windows) or `python3 serve.py`.
+3. Confirm the browser address bar shows `http://localhost:...`, not `file://...`.
+4. If Python is not installed, install Python 3 first (Windows: python.org, tick "Add to PATH"; macOS/Linux: usually pre-installed, check with `python3 --version`).
+5. Open the browser DevTools console (F12) — a `file://` load shows script/CORS errors there, which confirms the diagnosis.
 
 ---
 
