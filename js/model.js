@@ -438,9 +438,27 @@ function lineOfBusinessNames(state) {
 }
 
 /* ---------------- Persistence ---------------- */
+// Some browsers block localStorage when the app is opened directly from disk (file://),
+// so fall back to an in-memory store for the current session.
+const safeStorage = (function () {
+  try {
+    const probe = "__mvp_probe__";
+    localStorage.setItem(probe, "1");
+    localStorage.removeItem(probe);
+    return localStorage;
+  } catch (error) {
+    const memory = new Map();
+    return {
+      getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+      setItem: (key, value) => memory.set(key, String(value)),
+      removeItem: (key) => memory.delete(key)
+    };
+  }
+})();
+
 function loadState() {
   try {
-    const raw = localStorage.getItem(MVP_STORAGE_KEY);
+    const raw = safeStorage.getItem(MVP_STORAGE_KEY);
     if (!raw) return emptyState();
     const parsed = JSON.parse(raw);
     const merged = Object.assign(emptyState(), parsed, {
@@ -460,7 +478,11 @@ function loadState() {
 function saveState(state) {
   refreshDerivedState(state);
   state.meta.lastUpdated = new Date().toISOString();
-  localStorage.setItem(MVP_STORAGE_KEY, JSON.stringify(state));
+  try {
+    safeStorage.setItem(MVP_STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.warn("Could not persist state locally. Use Export JSON to keep your work.", error);
+  }
 }
 
 /* ---------------- Export helpers ---------------- */

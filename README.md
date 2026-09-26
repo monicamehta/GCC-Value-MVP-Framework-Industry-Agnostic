@@ -2,7 +2,7 @@
 
 A browser-based framework that takes a Global Capability Centre case from business evidence to a defensible MVP value model. Capture the Voice of Business, anchor it to strategic goals, score capability candidates in a workshop, and let the model produce the scope, value, investment, and payback the enterprise needs to make a decision.
 
-No build step, no server dependency, no data leaves the browser. State is held in `localStorage` and can be exported to JSON.
+No build step, no server, no install, no internet connection, and no data leaves the browser. Everything it needs — including the Excel parser used by the CSV/XLSX import — ships inside the folder. State is held in `localStorage` and can be exported to JSON.
 
 **Live:** https://monicamehta.github.io/GCC-Value-MVP-Framework-Industry-Agnostic/
 
@@ -12,23 +12,15 @@ No build step, no server dependency, no data leaves the browser. State is held i
 
 **Easiest:** open the live link above, then click **Load Sample Data**.
 
-**Locally on macOS:** double-click `Open GCC Value MVP.command`. It starts a local server and opens the app at `http://localhost:8000/`. Keep the Terminal window open while using it; press `Ctrl+C` to stop.
+**Locally on any OS:** double-click `index.html`. That is the whole procedure — any modern browser (Chrome, Edge, Safari, Firefox) will run it straight from disk, online or offline.
 
-**Locally on Windows:** double-click `Open GCC Value MVP.bat` (requires Python 3 installed and on PATH — get it from python.org, tick "Add Python to PATH" during install). It starts a local server and opens the app.
+To share with someone, send them the **entire folder** (zip it first). They need `index.html`, `style.css`, and the whole `js/` folder including `js/vendor/`.
 
-**Locally on any OS with Python installed:** run `python3 serve.py` (or `python serve.py` on Windows) from the project folder, then open the URL it prints.
+### Troubleshooting
 
-Opening `index.html` directly from Finder/Explorer (double-clicking the file) will not work — browsers block `file://` pages from loading local scripts. Symptoms look like: the page loads and the header buttons are visible, but **Load Sample Data** does nothing, and the **Import CSV/XLSX**, **Export CSV**, and **+ Add** controls never appear inside any tab. This means the JavaScript never ran — use one of the launchers above or the live link instead.
+**Page loads but the Add/Import/Export controls never appear.** They almost certainly extracted only `index.html` instead of the whole folder. Confirm `style.css` and `js/` sit next to it, then re-open. Opening the browser DevTools console (F12) will show which file failed to load.
 
-### Troubleshooting: buttons/import/export missing after sharing the files
-
-If someone you shared the project with sees the page but nothing works (no sample data, no Add/Import/Export controls), it is almost always because they opened `index.html` directly instead of running it through a local server. Fix:
-
-1. Confirm they have the whole folder, not just `index.html` — they need `style.css`, the `js/` folder, and one of the launcher files.
-2. Have them run the matching launcher for their OS (`Open GCC Value MVP.command` on macOS, `Open GCC Value MVP.bat` on Windows) or `python3 serve.py`.
-3. Confirm the browser address bar shows `http://localhost:...`, not `file://...`.
-4. If Python is not installed, install Python 3 first (Windows: python.org, tick "Add to PATH"; macOS/Linux: usually pre-installed, check with `python3 --version`).
-5. Open the browser DevTools console (F12) — a `file://` load shows script/CORS errors there, which confirms the diagnosis.
+**Work disappears between sessions.** A few browsers refuse `localStorage` on `file://` pages, and some block it in private/incognito windows. The app detects this and keeps working for the session, but nothing is saved to disk. Use **Export JSON** to save your work and **Import JSON** to restore it. If you need persistence across sessions, use the live link instead.
 
 ---
 
@@ -245,5 +237,5 @@ Importing into the Tab 6 placement register marks every imported row as a **Lead
 | `js/app.js` | UI layer, registers, and tab renderers |
 | `js/charts.js` | Pure SVG chart helpers, no chart library |
 | `js/seedData.js` | Illustrative dataset loaded by **Load Sample Data** |
+| `js/vendor/xlsx.full.min.js` | Bundled SheetJS parser for CSV/XLSX import |
 | `style.css` | Styling |
-| `Open GCC Value MVP.command` | macOS launcher |

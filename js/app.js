@@ -134,7 +134,7 @@ function importRowsFromFile(file, columns, onRows) {
     reader.readAsArrayBuffer(file);
     return;
   }
-  alert("Excel import needs the XLSX parser to load. If you are offline, save the sheet as CSV and import it here.");
+  alert("Unsupported file type. Import a .csv, .txt, .xlsx or .xls file.");
 }
 
 /* ---------------------------------------------------------------- */
